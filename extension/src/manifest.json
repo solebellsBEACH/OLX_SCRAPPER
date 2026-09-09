@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "OLX Workspace",
+  "version": "1.0.0",
+  "description": "Análise de anúncios OLX com IA",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://www.olx.com.br/*", "http://localhost:8787/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "OLX Workspace"
+  },
+  "options_ui": {
+    "page": "popup.html?tab=1",
+    "open_in_tab": true
+  }
+}
