@@ -9,9 +9,17 @@
   <body>
     <div id="app" style="width: 300px; padding: 16px; font-family: Arial;">
       <h2>OLX Workspace</h2>
-      <button id="analyzeBtn">📊 Executar Análise</button>
-      <button id="scrollBtn">⬇️ Auto-scroll</button>
+      <div class="actions">
+        <button id="analyzeBtn">📊 Executar Análise</button>
+        <button id="scrollBtn">⬇️ Auto-scroll</button>
+      </div>
       <div id="status"></div>
+      <div id="list"></div>
+      <div id="pager" hidden>
+        <button id="prevBtn">‹ Anterior</button>
+        <span id="pageInfo"></span>
+        <button id="nextBtn">Próxima ›</button>
+      </div>
     </div>
     <script src="popup.js"></script>
   </body>

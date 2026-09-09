@@ -22,7 +22,8 @@ type ContentAction = "extractSections" | "logAnalysis" | "autoScroll";
 
 interface ContentMessage {
   action: ContentAction;
-  analysis?: string;
+  categorias?: unknown[] | null;
+  raw?: string | null;
 }
 
 interface AdDetail {
@@ -176,9 +177,15 @@ if (!window.__olxWorkspaceInjected) {
       }
 
       if (message.action === "logAnalysis") {
-        console.log("=== ANÁLISE DEEPSEEK ===");
-        console.log(message.analysis ?? "(vazio)");
-        console.log("=== FIM DA ANÁLISE DEEPSEEK ===");
+        console.log("=== CATEGORIZAÇÃO IA (marca / modelo / ano / motor ...) ===");
+        if (Array.isArray(message.categorias)) {
+          console.table(message.categorias);
+          console.log(message.categorias);
+        } else {
+          console.warn("IA não retornou JSON válido. Resposta bruta:");
+          console.log(message.raw ?? "(vazio)");
+        }
+        console.log("=== FIM DA CATEGORIZAÇÃO IA ===");
         sendResponse({ ok: true });
         return false;
       }

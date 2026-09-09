@@ -47,10 +47,30 @@ interface PopupMessage {
   action: Action;
 }
 
+type Categoria = Record<string, unknown> & { index?: number };
+type Card = Record<string, unknown> & { index?: number };
+type Item = Card & { categoria: Categoria | null };
+
 interface AnalyzeResult {
   count: number;
-  analysis: string | null;
+  items: Item[];
   aiError?: string;
+}
+
+function mergeItems(cards: Card[], categorias: unknown[] | null): Item[] {
+  const byIndex = new Map<number, Categoria>();
+  if (Array.isArray(categorias)) {
+    categorias.forEach((c, i) => {
+      if (c && typeof c === "object") {
+        const cat = c as Categoria;
+        byIndex.set(typeof cat.index === "number" ? cat.index : i, cat);
+      }
+    });
+  }
+  return cards.map((card, i) => ({
+    ...card,
+    categoria: byIndex.get(typeof card.index === "number" ? card.index : i) ?? null,
+  }));
 }
 
 interface DispatchResponse {
@@ -84,7 +104,7 @@ async function analyze(): Promise<AnalyzeResult> {
   await injectContent(tab.id);
 
   const extracted = (await chrome.tabs.sendMessage(tab.id, { action: "extractSections" })) as
-    | { ok: boolean; count: number; cards: unknown[] }
+    | { ok: boolean; count: number; cards: Card[] }
     | undefined;
   const cards = extracted?.cards ?? [];
 
@@ -96,21 +116,35 @@ async function analyze(): Promise<AnalyzeResult> {
     });
     const data = (await response.json().catch(() => ({}))) as {
       ok?: boolean;
-      analysis?: string;
+      categorias?: unknown[] | null;
+      raw?: string | null;
       error?: string;
     };
 
     if (!response.ok || !data.ok) {
-      return { count: cards.length, analysis: null, aiError: data.error ?? `Proxy HTTP ${response.status}` };
+      return {
+        count: cards.length,
+        items: mergeItems(cards, null),
+        aiError: data.error ?? `Proxy HTTP ${response.status}`,
+      };
     }
 
-    await chrome.tabs.sendMessage(tab.id, { action: "logAnalysis", analysis: data.analysis ?? "" });
-    return { count: cards.length, analysis: data.analysis ?? "" };
+    const categorias = Array.isArray(data.categorias) ? data.categorias : null;
+    await chrome.tabs.sendMessage(tab.id, {
+      action: "logAnalysis",
+      categorias,
+      raw: data.raw ?? null,
+    });
+    return {
+      count: cards.length,
+      items: mergeItems(cards, categorias),
+      aiError: categorias ? undefined : "IA não retornou JSON válido (veja 'raw' no console).",
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       count: cards.length,
-      analysis: null,
+      items: mergeItems(cards, null),
       aiError: `Proxy inacessível (${msg}). Rode: cd proxy && npm start`,
     };
   }
@@ -120,7 +154,7 @@ async function autoScroll(): Promise<AnalyzeResult> {
   const tab = await getActiveOlxTab();
   await injectContent(tab.id);
   await chrome.tabs.sendMessage(tab.id, { action: "autoScroll" });
-  return { count: 0, analysis: null };
+  return { count: 0, items: [] };
 }
 
 chrome.runtime.onMessage.addListener(

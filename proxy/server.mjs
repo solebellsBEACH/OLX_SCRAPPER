@@ -69,16 +69,38 @@ async function readBody(req) {
 
 function buildPrompt(sections) {
   return [
-    "Analise os anúncios de veículos do OLX abaixo (JSON já extraído da página).",
-    "Para CADA anúncio, responda em português e em tópicos:",
-    "- Relação preço x km x ano e se o preço parece acima/na média/abaixo do mercado;",
-    "- Pontos de atenção (km alto, sem desconto, localização, etc.);",
-    "- Nota de 0 a 10 de oportunidade de compra.",
-    "Ao final, ranqueie do melhor para o pior negócio.",
+    "Categorize CADA anúncio de veículo do OLX abaixo a partir do título e dos detalhes.",
+    "Responda SOMENTE com um objeto JSON válido, sem texto fora do JSON, no formato:",
+    '{ "anuncios": [ {',
+    '  "index": number,',
+    '  "marca": string|null,           // ex.: "Honda"',
+    '  "modelo": string|null,          // ex.: "HR-V"',
+    '  "versao": string|null,          // ex.: "EX", "EXL", "Touring"',
+    '  "ano": number|null,             // ano-modelo, ex.: 2016',
+    '  "motor": string|null,           // ex.: "1.8"',
+    '  "combustivel": string|null,     // "Flex", "Gasolina", "Diesel", "Elétrico", "Híbrido"',
+    '  "cambio": string|null,          // "Automático" ou "Manual"',
+    '  "portas": number|null,          // ex.: 5',
+    '  "carroceria": string|null       // "SUV", "Hatch", "Sedã", "Picape", etc.',
+    "} ] }",
+    "Use null quando o dado não aparecer. Não invente. Mantenha 'index' igual ao do input.",
     "",
     "ANÚNCIOS:",
     JSON.stringify(sections, null, 2),
   ].join("\n");
+}
+
+function extractCategorias(content) {
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return { categorias: null, raw: content };
+  }
+  const categorias = Array.isArray(parsed)
+    ? parsed
+    : (parsed.anuncios ?? parsed.data ?? parsed.items ?? null);
+  return Array.isArray(categorias) ? { categorias, raw: null } : { categorias: null, raw: content };
 }
 
 async function handleAnalyze(req, res) {
@@ -96,7 +118,7 @@ async function handleAnalyze(req, res) {
   }
 
   if (sections.length === 0) {
-    return sendJSON(res, 200, { ok: true, model: MODEL, count: 0, analysis: "Nenhuma section encontrada na página." });
+    return sendJSON(res, 200, { ok: true, model: MODEL, count: 0, categorias: [] });
   }
 
   try {
@@ -108,10 +130,14 @@ async function handleAnalyze(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.3,
+        temperature: 0,
         stream: false,
+        response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "Você é um analista automotivo objetivo e direto." },
+          {
+            role: "system",
+            content: "Você categoriza anúncios de veículos e responde apenas com JSON válido.",
+          },
           { role: "user", content: buildPrompt(sections) },
         ],
       }),
@@ -123,11 +149,15 @@ async function handleAnalyze(req, res) {
       return sendJSON(res, upstream.status, { ok: false, error: detail });
     }
 
+    const content = data?.choices?.[0]?.message?.content ?? "";
+    const { categorias, raw } = extractCategorias(content);
+
     return sendJSON(res, 200, {
       ok: true,
       model: MODEL,
       count: sections.length,
-      analysis: data?.choices?.[0]?.message?.content ?? "",
+      categorias,
+      raw,
       usage: data?.usage ?? null,
     });
   } catch (err) {

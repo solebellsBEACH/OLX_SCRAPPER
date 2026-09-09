@@ -1,3 +1,7 @@
+* {
+  box-sizing: border-box;
+}
+
 button {
   width: 100%;
   padding: 10px;
@@ -17,17 +21,100 @@ button:disabled {
   white-space: pre-wrap;
 }
 
-/* Quando aberto em aba separada (popup.html?tab=1) */
+/* ---- Aba separada (popup.html?tab=1) ---- */
 body.as-tab {
   display: flex;
   justify-content: center;
-  padding-top: 32px;
+  padding: 24px 12px 48px;
 }
 
 body.as-tab #app {
-  width: 420px;
+  width: min(760px, 94vw);
 }
 
-body.as-tab #openTabBtn {
-  display: none;
+body.as-tab .actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- Listagem ---- */
+#list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.item .thumb {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #f0f0f0;
+  flex: 0 0 auto;
+}
+
+.item .body {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.item .title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.item .cat {
+  color: #005a9c;
+  font-weight: 600;
+}
+
+.item .meta {
+  color: #666;
+}
+
+.item .price {
+  margin-top: 2px;
+  font-weight: 700;
+}
+
+.item .price .old {
+  margin-left: 6px;
+  font-weight: 400;
+  color: #999;
+  text-decoration: line-through;
+}
+
+.item a {
+  font-size: 12px;
+}
+
+/* ---- Paginação ---- */
+#pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+#pager button {
+  width: auto;
+  padding: 6px 14px;
+  margin: 0;
+}
+
+#pageInfo {
+  font-size: 13px;
+  color: #444;
 }
