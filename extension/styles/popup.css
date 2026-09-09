@@ -14,6 +14,11 @@ button:disabled {
   opacity: 0.6;
 }
 
+button.ghost {
+  background: transparent;
+  border: 1px solid #ccc;
+}
+
 #status {
   margin-top: 8px;
   font-size: 13px;
@@ -29,12 +34,41 @@ body.as-tab {
 }
 
 body.as-tab #app {
-  width: min(760px, 94vw);
+  width: min(820px, 94vw);
 }
 
 body.as-tab .actions {
   display: flex;
   gap: 8px;
+}
+
+/* ---- Toolbar de seleção ---- */
+#toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+#toolbar button {
+  width: auto;
+  padding: 6px 12px;
+  margin: 0;
+}
+
+#dbDump {
+  margin-top: 10px;
+  max-height: 320px;
+  overflow: auto;
+  background: #0f1115;
+  color: #7ee787;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* ---- Listagem ---- */
@@ -47,11 +81,21 @@ body.as-tab .actions {
 
 .item {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 8px;
   background: #fff;
+}
+
+.item.sel {
+  border-color: #005a9c;
+  box-shadow: 0 0 0 2px rgba(0, 90, 156, 0.15);
+}
+
+.item .pick {
+  flex: 0 0 auto;
+  padding-top: 2px;
 }
 
 .item .thumb {
@@ -94,6 +138,30 @@ body.as-tab .actions {
   font-weight: 400;
   color: #999;
   text-decoration: line-through;
+}
+
+.item .badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.item .badge.db {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+.item .badge.run {
+  background: #fef7e0;
+  color: #b06000;
+}
+
+.item .badge.err {
+  background: #fce8e6;
+  color: #c5221f;
 }
 
 .item a {

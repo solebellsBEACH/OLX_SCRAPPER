@@ -6,18 +6,44 @@
  * para a API. A chave nunca sai da sua máquina nem entra no bundle da extensão.
  *
  * Rotas:
- *   GET  /health   -> status + se a chave está configurada
- *   POST /analyze  -> { sections: AdCard[] }  ->  { ok, analysis, usage }
+ *   GET    /health   -> status + se a chave está configurada
+ *   POST   /analyze  -> { sections: AdCard[] }  ->  { ok, categorias, raw, usage }
+ *   GET    /db       -> { ok, db }              (conteúdo de <raiz>/db.json)
+ *   POST   /db       -> { records:[{id,...}] } | { id, record } | { db:{...} }
+ *                       faz merge por id, grava em <raiz>/db.json, devolve { ok, db }
+ *   DELETE /db       -> zera <raiz>/db.json     -> { ok, db:{} }
  *
  * Requisitos: Node >= 18.17 (usa fetch global). Sem dependências externas.
  */
 
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** Arquivo JSON usado como "banco" — fica na RAIZ do projeto. */
+const DB_PATH = join(HERE, "..", "db.json");
+
+function readDb() {
+  try {
+    const raw = readFileSync(DB_PATH, "utf8").trim();
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    if (err.code === "ENOENT") return {};
+    throw err;
+  }
+}
+
+/** Escrita atômica: grava num .tmp e renomeia por cima. */
+function writeDb(obj) {
+  const tmp = `${DB_PATH}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(obj, null, 2)}\n`, "utf8");
+  renameSync(tmp, DB_PATH);
+}
 
 /** Parser mínimo de .env (sem dependências). Não sobrescreve variáveis já definidas. */
 function loadEnv(path) {
@@ -52,7 +78,7 @@ const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -84,6 +110,7 @@ function buildPrompt(sections) {
     '  "carroceria": string|null       // "SUV", "Hatch", "Sedã", "Picape", etc.',
     "} ] }",
     "Use null quando o dado não aparecer. Não invente. Mantenha 'index' igual ao do input.",
+    "Se houver o campo 'description', use-o também como fonte.",
     "",
     "ANÚNCIOS:",
     JSON.stringify(sections, null, 2),
@@ -165,6 +192,35 @@ async function handleAnalyze(req, res) {
   }
 }
 
+async function handleDbWrite(req, res) {
+  let payload;
+  try {
+    payload = JSON.parse(await readBody(req));
+  } catch (err) {
+    return sendJSON(res, 400, { ok: false, error: `JSON inválido: ${err.message}` });
+  }
+
+  const db = readDb();
+  let records = [];
+  if (Array.isArray(payload?.records)) records = payload.records;
+  else if (payload?.id) records = [{ id: payload.id, ...(payload.record ?? {}) }];
+  else if (payload?.db && typeof payload.db === "object") records = Object.values(payload.db);
+  else return sendJSON(res, 400, { ok: false, error: "envie { records:[...] } ou { id, record } ou { db }" });
+
+  for (const rec of records) {
+    if (!rec || typeof rec !== "object" || !rec.id) continue;
+    const id = String(rec.id);
+    db[id] = { ...(db[id] ?? {}), ...rec, id, savedAt: new Date().toISOString() };
+  }
+
+  try {
+    writeDb(db);
+  } catch (err) {
+    return sendJSON(res, 500, { ok: false, error: `Falha ao gravar db.json: ${err.message}` });
+  }
+  return sendJSON(res, 200, { ok: true, count: Object.keys(db).length, db });
+}
+
 const server = createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, CORS);
@@ -172,17 +228,42 @@ const server = createServer((req, res) => {
     return;
   }
   if (req.method === "GET" && req.url === "/health") {
-    return sendJSON(res, 200, { ok: true, hasKey: Boolean(API_KEY), model: MODEL, port: PORT });
+    return sendJSON(res, 200, {
+      ok: true,
+      hasKey: Boolean(API_KEY),
+      model: MODEL,
+      port: PORT,
+      dbPath: DB_PATH,
+    });
   }
   if (req.method === "POST" && req.url === "/analyze") {
     return void handleAnalyze(req, res);
   }
-  sendJSON(res, 404, { ok: false, error: "Use GET /health ou POST /analyze" });
+  if (req.method === "GET" && req.url === "/db") {
+    try {
+      return sendJSON(res, 200, { ok: true, db: readDb() });
+    } catch (err) {
+      return sendJSON(res, 500, { ok: false, error: `Falha ao ler db.json: ${err.message}` });
+    }
+  }
+  if (req.method === "POST" && req.url === "/db") {
+    return void handleDbWrite(req, res);
+  }
+  if (req.method === "DELETE" && req.url === "/db") {
+    try {
+      writeDb({});
+      return sendJSON(res, 200, { ok: true, db: {} });
+    } catch (err) {
+      return sendJSON(res, 500, { ok: false, error: `Falha ao limpar db.json: ${err.message}` });
+    }
+  }
+  sendJSON(res, 404, { ok: false, error: "Rotas: GET /health, POST /analyze, GET|POST|DELETE /db" });
 });
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`[OLX Workspace] proxy em http://localhost:${PORT}`);
-  console.log(`  POST /analyze  -> DeepSeek (${MODEL})`);
+  console.log(`  POST /analyze          -> DeepSeek (${MODEL})`);
+  console.log(`  GET|POST|DELETE /db    -> ${DB_PATH}`);
   console.log(`  GET  /health`);
   if (!API_KEY) console.warn("  AVISO: defina DEEPSEEK_API_KEY em proxy/.env");
 });

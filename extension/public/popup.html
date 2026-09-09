@@ -9,12 +9,25 @@
   <body>
     <div id="app" style="width: 300px; padding: 16px; font-family: Arial;">
       <h2>OLX Workspace</h2>
+
       <div class="actions">
         <button id="analyzeBtn">📊 Executar Análise</button>
         <button id="scrollBtn">⬇️ Auto-scroll</button>
       </div>
+
       <div id="status"></div>
+
+      <div id="toolbar" hidden>
+        <label><input type="checkbox" id="selAllBtn" /> selecionar página</label>
+        <button id="analyzeSelBtn" disabled>🔎 Analisar selecionados (0)</button>
+        <button id="viewDbBtn">🗃️ Ver DB</button>
+        <button id="clearDbBtn" class="ghost">limpar DB</button>
+      </div>
+
+      <pre id="dbDump" hidden></pre>
+
       <div id="list"></div>
+
       <div id="pager" hidden>
         <button id="prevBtn">‹ Anterior</button>
         <span id="pageInfo"></span>

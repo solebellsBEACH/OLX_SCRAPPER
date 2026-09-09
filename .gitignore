@@ -2,3 +2,5 @@ node_modules/
 extension/build/
 **/.env
 *.log
+db.json
+db.json.tmp

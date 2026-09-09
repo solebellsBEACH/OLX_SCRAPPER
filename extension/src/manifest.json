@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Análise de anúncios OLX com IA",
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://www.olx.com.br/*", "http://localhost:8787/*"],
+  "host_permissions": ["https://*.olx.com.br/*", "http://localhost:8787/*"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_title": "OLX Workspace"
