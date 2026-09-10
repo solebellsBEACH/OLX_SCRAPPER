@@ -15,7 +15,8 @@ que mudou e por quê.
 **OLX Workspace** é uma **extensão do Chrome (Manifest V3, TypeScript)** para garimpar anúncios
 de veículos no OLX com apoio de IA (**DeepSeek**). Ela:
 
-1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`).
+1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`) — ou **varre
+   várias páginas** da paginação de uma vez ("Varrer páginas").
 2. Manda esses dados para a **DeepSeek** (via um **proxy local** que guarda a chave) e recebe
    cada anúncio **categorizado**: marca, modelo, versão, ano, motor, combustível, câmbio,
    portas, carroceria.
@@ -141,9 +142,18 @@ configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`
 
 1. Clique no ícone da extensão → abre a **janela** do OLX Workspace.
 2. Deixe **uma aba do OLX** aberta numa página de listagem de veículos.
-3. **📊 Executar Análise** → a lista paginada aparece (e o log no console da janela).
-4. Marque itens → **🔎 Analisar selecionados** → a aba do OLX navega por cada anúncio, os
-   dados são extraídos, categorizados e gravados em `db.json`. A aba volta para a listagem.
+3. **📊 Executar Análise** → lê só a página atual e mostra a lista (log no console da janela).
+   Ou **📚 Varrer páginas** (campo "até N" + "rolar cada página" + "pular os que já estão no
+   DB" + "salvar no DB") → percorre a paginação do OLX (`?o=2`, `?o=3`, …) a partir da página
+   atual, extrai as `section` de cada uma, **ignora anúncios repetidos** (mesmo id em outra
+   página) e, se marcado, os que **já estão no `db.json`**, categoriza no DeepSeek em lotes,
+   **grava os novos no `db.json`** (registro raso, sem visitar a página) e devolve a lista
+   acumulada. Para sozinho quando a página não traz nada novo; ao final volta a aba para onde
+   você estava. O painel `web/` mostra os registros já na próxima vez que a aba ganhar foco.
+4. Marque itens (ou **"selecionar todas (N)"** — pega todas as páginas da lista e ignora os
+   já analisados) → **🔎 Analisar selecionados** → a aba do OLX navega por cada anúncio, os
+   dados são extraídos, categorizados e gravados em `db.json`. Anúncio que já tem os dados da
+   página é **pulado** (badge `✔ analisado`); a aba volta para a listagem no fim.
 5. **🗃️ Ver DB** mostra o `db.json`; **limpar DB** zera.
 
 > Depois de qualquer mudança no código: `npm run build` (ou deixe o `dev` rodando) **e**
@@ -231,6 +241,42 @@ OLX_SCRAPPER/
 
 ### 2026-09-10
 
+- **"Selecionar todas" + não refazer o que já foi feito.** Na toolbar da janela: botão
+  **"selecionar todas (N)"** marca todos os itens da varredura (todas as páginas da lista de
+  uma vez), **pulando os já analisados**; N = quantos ainda faltam. Botão **"limpar seleção"**.
+  `mergeItems` passou a marcar cada item com `inDb` (existe no `db.json`) e `deepAnalyzed`
+  (existe **e** não é raso — já passou pelo "Analisar selecionados"); o badge da linha mostra
+  `✔ analisado` ou `🗃️ no DB (raso)`. `analyzeSelected` agora lê o `db.json` no início e
+  **ignora os `targets` já analisados** (a menos que `force`), devolvendo `skipped[]`; ao
+  final tira da seleção o que foi salvo/pulado. Assim dá pra "selecionar todas" e rodar em
+  lote sem reprocessar anúncio já feito.
+- **"Varrer páginas" na extensão.** Nova ação `crawlListing` no `background.ts`: a partir da
+  listagem aberta, percorre a paginação do OLX pelo query param `o` (`?o=2`, `?o=3`, …) até
+  `N` páginas, roda em cada uma o mesmo processo do "Executar Análise" (opcional auto-scroll
+  curto + `extractSections`) e categoriza no DeepSeek **em lotes de 20** (`categorizeInChunks`)
+  para não estourar o prompt/JSON. Para cedo se a página vier vazia ou só com ids repetidos;
+  ao final devolve a aba para a URL original. UI: botão **📚 Varrer páginas** + input "até N"
+  + checkbox "rolar cada página"; progresso por página no `#status`. `content.ts` passou a
+  aceitar `duration` no `autoScroll`.
+- **Varredura não repete anúncio.** Dupla validação no `crawlListing`: (1) `Set` de ids já
+  vistos **nesta varredura** — a paginação do OLX repete cards entre páginas, então esses são
+  descartados (e a varredura para se uma página inteira só tem repetidos); (2) `db.json` é
+  lido **uma vez** no início e, com o checkbox **"pular os que já estão no DB"** (padrão
+  ligado), anúncios já analisados não voltam pra IA nem pra lista. O resultado informa
+  `newCount` / `skipped` / `duplicates` e o `#status` mostra "N novos · M já no DB · K
+  repetidos".
+- **Varredura grava no `db.json`.** Antes o "Varrer páginas" só mostrava a lista na janela da
+  extensão — o painel `web/` não via nada porque nada era persistido. Agora, com o checkbox
+  **"salvar no DB"** (padrão ligado), cada anúncio novo vira um registro **raso** (`source:
+  "listing"`, `shallow: true`) montado a partir do card da listagem (sem visitar a página):
+  `detail` com título, preço, preço antigo, km, local, `properties` e a 1ª imagem, mais a
+  `categoria` da IA. Gravação em **lotes de 40** `{ records:[…] }` (`dbUpsertMany`). Só grava
+  ids que ainda não existem, pra não sobrescrever um registro completo com o raso.
+  `analyzeSelected` continua enriquecendo o mesmo id depois (merge). O painel (`useDb`) passou
+  a **recarregar ao focar a aba**, então a varredura aparece sem F5. O `#status` diz
+  explicitamente `N salvos no DB` ou `NÃO salvo no DB: <motivo>` — resultado sem nenhum dos
+  dois = extensão desatualizada no Chrome (recarregue em `chrome://extensions` **e**
+  feche/reabra a janela do OLX Workspace).
 - **`setup.sh` sobe o painel também.** Passou a instalar as deps de `web/` + `tsc -b` e o
   terceiro terminal ("OLX · Painel (Vite)") agora espera o proxy e roda `npm run dev`
   (`http://localhost:5173`) em vez de só imprimir instruções. `--no-terminals` cobre o

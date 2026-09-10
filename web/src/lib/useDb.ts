@@ -42,6 +42,20 @@ export function useDb(): UseDb {
     };
   }, [load]);
 
+  // Recarrega ao voltar para a aba do painel — assim o garimpo/varredura feito
+  // na extensão aparece sem precisar dar F5.
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [load]);
+
   const rows = useMemo(() => toRows(db), [db]);
   return { db, rows, status, error, refetch: load };
 }

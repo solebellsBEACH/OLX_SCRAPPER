@@ -25,6 +25,8 @@ type ContentAction = "extractSections" | "extractAdPage" | "autoScroll";
 
 interface ContentMessage {
   action: ContentAction;
+  /** só para "autoScroll": duração da rolagem em ms (padrão 3000). */
+  duration?: number;
 }
 
 interface AdDetail {
@@ -307,7 +309,8 @@ if (!window.__olxWorkspaceInjected) {
       }
 
       if (message.action === "autoScroll") {
-        void scrollAutomatic(3000).then(() => sendResponse({ ok: true }));
+        const ms = typeof message.duration === "number" && message.duration > 0 ? message.duration : 3000;
+        void scrollAutomatic(ms).then(() => sendResponse({ ok: true }));
         return true; // resposta assíncrona
       }
 

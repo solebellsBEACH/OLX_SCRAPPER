@@ -35,6 +35,7 @@ interface Item {
   date?: string | null;
   categoria?: Categoria | null;
   inDb?: boolean;
+  deepAnalyzed?: boolean;
 }
 
 interface AnalyzeResult {
@@ -43,6 +44,20 @@ interface AnalyzeResult {
   categorias?: unknown[] | null;
   raw?: string | null;
   aiError?: string;
+  /** só no "Varrer páginas": quantas páginas foram lidas. */
+  pages?: number;
+  newCount?: number;
+  skipped?: number;
+  duplicates?: number;
+  savedToDb?: number;
+  saveError?: string;
+  perPage?: Array<{
+    page: number;
+    novos: number;
+    noDb: number;
+    repetidos: number;
+    total: number;
+  }>;
 }
 
 interface DispatchResponse {
@@ -102,9 +117,16 @@ const toolbarEl = $<HTMLDivElement>("toolbar");
 const dbDumpEl = $<HTMLPreElement>("dbDump");
 const analyzeBtn = $<HTMLButtonElement>("analyzeBtn");
 const scrollBtn = $<HTMLButtonElement>("scrollBtn");
+const crawlBtn = $<HTMLButtonElement>("crawlBtn");
+const maxPagesEl = $<HTMLInputElement>("maxPages");
+const scrollEachEl = $<HTMLInputElement>("scrollEach");
+const skipKnownEl = $<HTMLInputElement>("skipKnown");
+const saveToDbEl = $<HTMLInputElement>("saveToDb");
 const prevBtn = $<HTMLButtonElement>("prevBtn");
 const nextBtn = $<HTMLButtonElement>("nextBtn");
 const selAllBtn = $<HTMLInputElement>("selAllBtn");
+const selectAllBtn = $<HTMLButtonElement>("selectAllBtn");
+const clearSelBtn = $<HTMLButtonElement>("clearSelBtn");
 const analyzeSelBtn = $<HTMLButtonElement>("analyzeSelBtn");
 const viewDbBtn = $<HTMLButtonElement>("viewDbBtn");
 const clearDbBtn = $<HTMLButtonElement>("clearDbBtn");
@@ -132,7 +154,15 @@ async function send(action: string, extra: Record<string, unknown> = {}): Promis
 function lockButtons(lock: boolean): void {
   analyzeBtn.disabled = lock;
   scrollBtn.disabled = lock;
+  crawlBtn.disabled = lock;
+  selectAllBtn.disabled = lock || items.length === 0;
+  clearSelBtn.disabled = lock || selected.size === 0;
   analyzeSelBtn.disabled = lock || selected.size === 0;
+}
+
+/** itens ainda sem os dados da página (não passaram pelo "Analisar selecionados"). */
+function pendingItems(): Item[] {
+  return items.filter((it) => it.id && !it.deepAnalyzed);
 }
 
 /* ---------- render ---------- */
@@ -223,7 +253,8 @@ function renderItem(it: Item): HTMLDivElement {
   const state = id ? rowState.get(id) : undefined;
   if (state === "running") body.appendChild(badge("run", "⏳ analisando…"));
   else if (state === "error") body.appendChild(badge("err", "✖ falhou"));
-  else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB"));
+  else if (state === "done" || it.deepAnalyzed) body.appendChild(badge("db", "✔ analisado"));
+  else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB (raso)"));
 
   if (it.url) {
     const link = document.createElement("a");
@@ -278,6 +309,10 @@ function renderPage(): void {
 function syncSelectionUi(): void {
   analyzeSelBtn.textContent = `🔎 Analisar selecionados (${selected.size})`;
   analyzeSelBtn.disabled = selected.size === 0 || analyzeBtn.disabled;
+  const pend = pendingItems().length;
+  selectAllBtn.textContent = `selecionar todas (${pend})`;
+  selectAllBtn.disabled = analyzeBtn.disabled || pend === 0;
+  clearSelBtn.disabled = analyzeBtn.disabled || selected.size === 0;
 }
 
 /* ---------- ações ---------- */
@@ -311,6 +346,58 @@ analyzeBtn.addEventListener("click", () => {
   })();
 });
 
+crawlBtn.addEventListener("click", () => {
+  void (async () => {
+    const maxPages = Math.max(1, Math.min(Number(maxPagesEl.value) || 5, 50));
+    const scrollEach = scrollEachEl.checked;
+    const skipKnown = skipKnownEl.checked;
+    const saveToDb = saveToDbEl.checked;
+    lockButtons(true);
+    setStatus(`⏳ Varrendo até ${maxPages} página(s)... (não feche esta janela)`);
+    try {
+      const response = await send("crawlListing", { maxPages, scrollEach, skipKnown, saveToDb });
+      if (!response.ok) {
+        setStatus(`❌ ${response.error ?? "Erro desconhecido."}`);
+        return;
+      }
+      const result = response.result ?? { count: 0, items: [] };
+      items = result.items;
+      page = 0;
+      selected.clear();
+      rowState.clear();
+      renderPage();
+      logSections(items);
+      logCategorias(result.categorias, result.raw);
+      if (result.perPage?.length) console.table(result.perPage);
+      await refreshDbFlags();
+      renderPage();
+      const pgs = result.pages ?? 0;
+      const extra = [
+        result.savedToDb ? `${result.savedToDb} salvos no DB` : "",
+        result.saveError ? `NÃO salvo no DB: ${result.saveError}` : "",
+        result.skipped ? `${result.skipped} já no DB (pulados)` : "",
+        result.duplicates ? `${result.duplicates} repetidos na paginação` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const suffix = extra ? ` — ${extra}` : "";
+      if (result.count === 0) {
+        setStatus(
+          `ℹ️ Nenhum anúncio novo em ${pgs} página(s)${suffix}.`,
+        );
+      } else {
+        setStatus(
+          result.aiError
+            ? `⚠️ ${result.count} novo(s) em ${pgs} página(s)${suffix}. IA: ${result.aiError}`
+            : `✅ ${result.count} novo(s) de ${pgs} página(s) categorizados${suffix} (console F12 + lista abaixo)`,
+        );
+      }
+    } finally {
+      lockButtons(false);
+    }
+  })();
+});
+
 scrollBtn.addEventListener("click", () => {
   void (async () => {
     lockButtons(true);
@@ -330,6 +417,24 @@ selAllBtn.addEventListener("change", () => {
     if (selAllBtn.checked) selected.add(it.id);
     else selected.delete(it.id);
   }
+  renderPage();
+});
+
+// Seleciona TODOS os itens da varredura (todas as páginas da lista), pulando os
+// que já passaram pelo "Analisar selecionados" — assim não se refaz o que já foi feito.
+selectAllBtn.addEventListener("click", () => {
+  const pend = pendingItems();
+  for (const it of pend) if (it.id) selected.add(it.id);
+  const done = items.length - pend.length;
+  setStatus(
+    `Selecionados ${pend.length} anúncio(s)` +
+      (done ? ` · ${done} já analisado(s), fora da seleção` : ""),
+  );
+  renderPage();
+});
+
+clearSelBtn.addEventListener("click", () => {
+  selected.clear();
   renderPage();
 });
 
@@ -362,6 +467,7 @@ analyzeSelBtn.addEventListener("click", () => {
       const result = response.result as unknown as {
         analyzed: Array<Record<string, unknown> & { id: string; url?: string }>;
         errors: Array<{ id: string; error: string }>;
+        skipped?: string[];
       };
 
       console.log("%c=== ANÁLISE DOS ANÚNCIOS (páginas) ===", "font-weight:bold");
@@ -373,13 +479,21 @@ analyzeSelBtn.addEventListener("click", () => {
       }
       if (result.errors.length) console.warn("erros:", result.errors);
 
+      // tira da seleção o que já foi analisado com sucesso (não refazer)
+      for (const rec of result.analyzed) selected.delete(rec.id);
+      for (const id of result.skipped ?? []) selected.delete(id);
+
       await refreshDbFlags();
       rowState.clear();
       renderPage();
       const okN = result.analyzed.length;
       const errN = result.errors.length;
+      const skN = result.skipped?.length ?? 0;
       setStatus(
-        `✅ ${okN} salvo(s) no DB${errN ? ` · ${errN} com erro` : ""}. Use "Ver DB" para conferir.`,
+        `✅ ${okN} salvo(s) no DB` +
+          (skN ? ` · ${skN} já analisado(s) (pulados)` : "") +
+          (errN ? ` · ${errN} com erro` : "") +
+          `. Use "Ver DB" para conferir.`,
       );
     } finally {
       lockButtons(false);
@@ -412,9 +526,11 @@ clearDbBtn.addEventListener("click", () => {
 
 async function refreshDbFlags(): Promise<void> {
   const response = await send("getDb");
-  const db = response.db ?? {};
+  const db = (response.db ?? {}) as Record<string, { shallow?: boolean }>;
   for (const it of items) {
-    it.inDb = Boolean(it.id && it.id in db);
+    const rec = it.id ? db[it.id] : undefined;
+    it.inDb = Boolean(rec);
+    it.deepAnalyzed = Boolean(rec && !rec.shallow);
   }
 }
 

@@ -26,6 +26,27 @@ button.ghost {
   white-space: pre-wrap;
 }
 
+/* ---- Varredura de páginas ---- */
+#crawlBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+#crawlBar button {
+  width: auto;
+  padding: 6px 12px;
+  margin: 0;
+}
+
+#crawlBar input[type="number"] {
+  width: 52px;
+  padding: 4px 6px;
+}
+
 /* ---- Aba separada (popup.html?tab=1) ---- */
 body.as-tab {
   display: flex;

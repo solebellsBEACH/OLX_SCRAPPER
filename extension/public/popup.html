@@ -15,10 +15,22 @@
         <button id="scrollBtn">⬇️ Auto-scroll</button>
       </div>
 
+      <div id="crawlBar">
+        <button id="crawlBtn">📚 Varrer páginas</button>
+        <label>até
+          <input type="number" id="maxPages" min="1" max="50" value="5" />
+        </label>
+        <label><input type="checkbox" id="scrollEach" checked /> rolar cada página</label>
+        <label><input type="checkbox" id="skipKnown" checked /> pular os que já estão no DB</label>
+        <label><input type="checkbox" id="saveToDb" checked /> salvar no DB</label>
+      </div>
+
       <div id="status"></div>
 
       <div id="toolbar" hidden>
         <label><input type="checkbox" id="selAllBtn" /> selecionar página</label>
+        <button id="selectAllBtn">selecionar todas (0)</button>
+        <button id="clearSelBtn" class="ghost" disabled>limpar seleção</button>
         <button id="analyzeSelBtn" disabled>🔎 Analisar selecionados (0)</button>
         <button id="viewDbBtn">🗃️ Ver DB</button>
         <button id="clearDbBtn" class="ghost">limpar DB</button>
