@@ -3,11 +3,12 @@
 # setup.sh — prepara o OLX Workspace e abre os terminais de trabalho.
 #
 # O que faz:
-#   1. Instala dependências da extensão e faz o build inicial (terminal atual).
+#   1. Instala dependências da extensão e do painel (web/) e faz o build inicial
+#      da extensão (terminal atual).
 #   2. Abre 3 terminais separados:
 #        [1] proxy DeepSeek         -> proxy/     npm start
 #        [2] webpack --watch        -> extension/ npm run dev
-#        [3] painel / health-check  -> aguarda o proxy e mostra como carregar
+#        [3] painel (Vite)          -> web/       aguarda o proxy e roda npm run dev
 #
 # Uso:
 #   ./setup.sh                 # build + abre os 3 terminais
@@ -19,7 +20,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXT_DIR="$SCRIPT_DIR/extension"
 PROXY_DIR="$SCRIPT_DIR/proxy"
+WEB_DIR="$SCRIPT_DIR/web"
 BUILD_DIR="$EXT_DIR/build"
+PANEL_URL="http://localhost:5173"
 
 OPEN_TERMINALS=1
 [[ "${1:-}" == "--no-terminals" ]] && OPEN_TERMINALS=0
@@ -80,14 +83,22 @@ echo "==> [extension] typecheck"
 echo "==> [extension] build inicial"
 ( cd "$EXT_DIR" && npm run build )
 
+# --- painel web: instala + typecheck ---
+echo "==> [web] npm install"
+( cd "$WEB_DIR" && npm install --no-audit --no-fund )
+echo "==> [web] typecheck"
+( cd "$WEB_DIR" && npx tsc -b )
+
 if [[ "$OPEN_TERMINALS" -eq 0 ]]; then
-  echo "==> Pronto (modo --no-terminals). Carregue $BUILD_DIR em chrome://extensions"
+  echo "==> Pronto (modo --no-terminals)."
+  echo "    Extensão:  carregue $BUILD_DIR em chrome://extensions"
+  echo "    Painel:    cd web && npm run dev   ($PANEL_URL)"
   exit 0
 fi
 
-# --- painel: espera o proxy subir e mostra as instruções ---
+# --- painel: espera o proxy subir e sobe o Vite dev server ---
 PANEL_CMD=$(cat <<PANEL
-echo '=== OLX Workspace — painel ==='
+echo '=== OLX Workspace — painel (Vite) ==='
 printf 'Aguardando o proxy em http://localhost:8787 ... '
 for i in \$(seq 1 30); do
   if curl -sf http://localhost:8787/health >/dev/null 2>&1; then echo 'OK'; break; fi
@@ -95,20 +106,21 @@ for i in \$(seq 1 30); do
 done
 curl -s http://localhost:8787/health; echo
 echo
-echo 'Carregue a extensão no Chrome:'
+echo 'Painel em $PANEL_URL — Dashboard / Listagem / Comparador / DB.'
+echo
+echo 'Extensão (coletor) no Chrome:'
 echo '  1. chrome://extensions'
 echo '  2. Ative o "Modo do desenvolvedor"'
 echo '  3. "Carregar sem compactação" -> $BUILD_DIR'
 echo
-echo 'Depois: abra uma página do OLX, clique no popup -> "Executar Análise".'
-echo 'Os dados das sections e a análise DeepSeek aparecem no console (F12) da página.'
+npm run dev
 PANEL
 )
 
 echo "==> Abrindo terminais..."
 open_terminal "OLX · Proxy DeepSeek"        "$PROXY_DIR" "npm start"      "proxy"
 open_terminal "OLX · webpack --watch"       "$EXT_DIR"   "npm run dev"    "extension-watch"
-open_terminal "OLX · Painel"                "$SCRIPT_DIR" "$PANEL_CMD"    "panel"
+open_terminal "OLX · Painel (Vite)"         "$WEB_DIR"   "$PANEL_CMD"     "panel"
 
-echo "==> Terminais abertos: proxy, watch e painel."
+echo "==> Terminais abertos: proxy, watch e painel ($PANEL_URL)."
 echo "==> Extensão pronta para carregar em: $BUILD_DIR"

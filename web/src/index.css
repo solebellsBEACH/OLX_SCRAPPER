@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-bg text-fg font-sans text-base;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Números sempre tabulares. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: #dbe4ff;
+  }
+}
+
+@layer components {
+  .row-opportunity {
+    background: #f2f8f3;
+  }
+  .row-opportunity:hover {
+    background: #e9f4ea;
+  }
+}

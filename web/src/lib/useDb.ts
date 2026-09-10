@@ -1,0 +1,78 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, ApiError } from "./api";
+import type { Db } from "@/types";
+import { toRows } from "./rows";
+
+type Status = "loading" | "ready" | "empty" | "error";
+
+interface UseDb {
+  db: Db;
+  rows: ReturnType<typeof toRows>;
+  status: Status;
+  error: string | null;
+  refetch: () => void;
+}
+
+export function useDb(): UseDb {
+  const [db, setDb] = useState<Db>({});
+  const [status, setStatus] = useState<Status>("loading");
+  const [error, setError] = useState<string | null>(null);
+  const alive = useRef(true);
+
+  const load = useCallback(async () => {
+    setStatus((s) => (s === "error" ? "loading" : s));
+    try {
+      const next = await api.getDb();
+      if (!alive.current) return;
+      setDb(next);
+      setError(null);
+      setStatus(Object.keys(next).length === 0 ? "empty" : "ready");
+    } catch (err) {
+      if (!alive.current) return;
+      setError(err instanceof ApiError ? err.message : String(err));
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    alive.current = true;
+    void load();
+    return () => {
+      alive.current = false;
+    };
+  }, [load]);
+
+  const rows = useMemo(() => toRows(db), [db]);
+  return { db, rows, status, error, refetch: load };
+}
+
+type ProxyState = "checking" | "online" | "offline" | "nokey";
+
+export function useProxyHealth(intervalMs = 15000) {
+  const [state, setState] = useState<ProxyState>("checking");
+  const [detail, setDetail] = useState<string>("");
+
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      try {
+        const h = await api.health();
+        if (!alive) return;
+        setState(h.hasKey ? "online" : "nokey");
+        setDetail(h.hasKey ? `${h.model} · ${h.dbPath}` : "DEEPSEEK_API_KEY ausente em proxy/.env");
+      } catch {
+        if (!alive) return;
+        setState("offline");
+        setDetail("");
+      }
+    };
+    void tick();
+    const id = setInterval(tick, intervalMs);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [intervalMs]);
+
+  return { state, detail };
+}

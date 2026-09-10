@@ -92,7 +92,10 @@ Pré-requisitos: **Node ≥ 18.17** e **Google Chrome**.
 ./setup.sh
 ```
 
-Isso instala, builda e abre os terminais. Depois, no Chrome:
+Isso instala as deps da **extensão** e do **painel (`web/`)**, faz o build da extensão e abre
+3 terminais: **proxy** (`proxy/ npm start`), **webpack --watch** (`extension/ npm run dev`) e
+**painel Vite** (`web/ npm run dev`, em `http://localhost:5173`, depois de esperar o proxy).
+`./setup.sh --no-terminals` só instala/typecheck (headless/CI). Depois, no Chrome:
 
 1. `chrome://extensions`
 2. Ativar **Modo do desenvolvedor**
@@ -114,6 +117,26 @@ npm run build               # ou: npm run dev  (webpack --watch)
 
 Carregar `extension/build/` em `chrome://extensions` como acima.
 
+### Painel de análise (`web/`)
+
+App **Vite + React + TypeScript** que roda ao lado do proxy e é o **painel de análise** do
+garimpo (a extensão continua sendo só o coletor). Lê tudo pelo proxy (`GET /db`,
+`POST /analyze`, `DELETE /db`).
+
+```bash
+cd web
+npm install
+npm run dev          # http://localhost:5173  (proxy precisa estar de pé em :8787)
+```
+
+Páginas: **Dashboard** (totais, distribuição por marca/ano, preço médio/mediano, quedas de
+preço, status do proxy), **Listagem** (tabela paginada com ordenação por coluna, filtros
+persistentes na querystring — marca, ano, faixa de preço/km, busca — e seleção múltipla),
+**Detalhe** (`/anuncio/:id`: galeria + dados da IA + properties + descrição, "Reanalisar" e
+"Remover do DB"), **Comparador** (`/comparador?ids=…`: 2 a 4 anúncios lado a lado, opcionais
+em matriz) e **DB / Config** (JSON cru, exportar CSV/JSON, limpar DB, endpoint do proxy
+configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`olx.proxyUrl`).
+
 ### Usar
 
 1. Clique no ícone da extensão → abre a **janela** do OLX Workspace.
@@ -134,23 +157,42 @@ Carregar `extension/build/` em `chrome://extensions` como acima.
 ```
 OLX_SCRAPPER/
 ├── README.md               ← este arquivo (status + histórico)
-├── setup.sh                ← build + abre 3 terminais
+├── setup.sh                ← instala tudo, builda a extensão, abre 3 terminais
+│                             (proxy, webpack --watch, painel Vite)
 ├── db.json                 ← "banco" JSON (gerado, não versionado)
 ├── proxy/
 │   ├── server.mjs          ← proxy DeepSeek + API do db.json
 │   ├── .env / .env.example ← chave DeepSeek (não versionado)
 │   └── package.json
-└── extension/
-    ├── src/
-    │   ├── manifest.json
-    │   ├── background.ts    ← service worker / orquestrador
-    │   ├── content.ts       ← extração na aba do OLX (sem console)
-    │   └── popup.ts         ← UI + logs no console da extensão
-    ├── public/popup.html
-    ├── styles/popup.css
-    ├── webpack.config.js
-    ├── tsconfig.json        ← strict
-    └── build/               ← bundle (carregar esta pasta no Chrome)
+├── extension/
+│   ├── src/
+│   │   ├── manifest.json
+│   │   ├── background.ts    ← service worker / orquestrador
+│   │   ├── content.ts       ← extração na aba do OLX (sem console)
+│   │   └── popup.ts         ← UI + logs no console da extensão
+│   ├── public/popup.html
+│   ├── styles/popup.css
+│   ├── webpack.config.js
+│   ├── tsconfig.json        ← strict
+│   └── build/               ← bundle (carregar esta pasta no Chrome)
+└── web/                     ← painel de análise (Vite + React + TS)
+    ├── index.html
+    ├── vite.config.ts       ← alias @, dev-proxy /proxy → :8787
+    ├── tailwind.config.js   ← tokens neutros, escala de espaço travada
+    └── src/
+        ├── types.ts         ← shape do registro do db.json (fonte única)
+        ├── lib/
+        │   ├── api.ts       ← camada única que fala com o proxy
+        │   ├── rows.ts      ← achata Db → AdRow[] + agregados + oportunidade
+        │   ├── format.ts    ← parse/format de preço, km, data
+        │   ├── useDb.ts     ← fetch do /db + /health (loading/vazio/erro)
+        │   ├── useFilters.ts← filtros ⇄ querystring
+        │   └── exporters.ts ← CSV / JSON
+        ├── components/
+        │   ├── Layout.tsx   ← sidebar + header
+        │   ├── data-table/  ← tabela (TanStack) no padrão openstatus
+        │   └── ui/          ← button, input, select, badge, checkbox
+        └── pages/           ← Dashboard, Listing, Detail, Compare, Config
 ```
 
 ---
@@ -187,8 +229,28 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-10
+
+- **`setup.sh` sobe o painel também.** Passou a instalar as deps de `web/` + `tsc -b` e o
+  terceiro terminal ("OLX · Painel (Vite)") agora espera o proxy e roda `npm run dev`
+  (`http://localhost:5173`) em vez de só imprimir instruções. `--no-terminals` cobre o
+  install/typecheck do `web/`. Adicionado `@types/node` ao `web/` (usado no `vite.config.ts`).
+
 ### 2026-09-09
 
+- **Painel de análise `web/` (Vite + React + TS).** App separado que roda ao lado do proxy e
+  vira o painel do garimpo; a extensão fica só como coletor. Camada de API única
+  (`src/lib/api.ts`) falando com o proxy, tipos do registro reaproveitados de `src/types.ts`,
+  filtros persistidos na querystring e estados reais (loading / vazio / "Proxy offline").
+  Cinco páginas: Dashboard, Listagem (tabela TanStack no padrão openstatus — header clicável,
+  paginação, toolbar de filtros, seleção múltipla), Detalhe (galeria + IA + properties +
+  descrição, reanalisar / remover), Comparador (2–4 lado a lado) e DB/Config (JSON cru,
+  export CSV/JSON, limpar DB, endpoint configurável, testar DeepSeek). Estilo de ferramenta
+  interna: fundo neutro, um acento, borda de 1px, sem sombra/gradiente, escala de espaço
+  travada, `tabular-nums`. Destaque de oportunidade quando o preço fica abaixo da média do
+  mesmo marca+modelo+ano (grupo com 2+ anúncios). Sem autenticação.
+  `web/src/lib/api.ts` também expõe `removeRecord(id)` (o proxy não tem DELETE por id: lê,
+  remove do mapa e regrava via `POST /db { db }`).
 - **README criado.** Passa a ser o documento de status do projeto; toda atualização futura
   deve ser registrada nesta seção.
 - **`ensureProxy()` no background.** `analyze` e `analyzeSelected` checam `GET /health` antes
