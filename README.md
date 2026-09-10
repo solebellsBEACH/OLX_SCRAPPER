@@ -13,13 +13,14 @@ que mudou e por quê.
 ## O que é
 
 **OLX Workspace** é uma **extensão do Chrome (Manifest V3, TypeScript)** para garimpar anúncios
-de veículos no OLX com apoio de IA (**DeepSeek**). Ela:
+de **carros** no OLX com apoio de IA (**DeepSeek**). Ela:
 
 1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`) — ou **varre
    várias páginas** da paginação de uma vez ("Varrer páginas").
 2. Manda esses dados para a **DeepSeek** (via um **proxy local** que guarda a chave) e recebe
-   cada anúncio **categorizado**: marca, modelo, versão, ano, motor, combustível, câmbio,
-   portas, carroceria.
+   cada anúncio **categorizado**: tipo, marca, modelo, versão, ano, motor, combustível, câmbio,
+   portas, carroceria. **Só carros de passeio ficam** — moto, caminhão, ônibus, van, náutica,
+   etc. são descartados pelo campo `tipo` (não vão para a lista nem para o `db.json`).
 3. Mostra tudo numa **janela separada** da extensão, em **lista paginada (5 por página)**, com
    **seleção por checkbox**.
 4. Para os itens selecionados, **navega a própria aba do OLX** até a página de cada anúncio,
@@ -141,7 +142,9 @@ configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`
 ### Usar
 
 1. Clique no ícone da extensão → abre a **janela** do OLX Workspace.
-2. Deixe **uma aba do OLX** aberta numa página de listagem de veículos.
+2. Deixe **uma aba do OLX** aberta numa página de listagem de carros — a URL precisa conter
+   `carros-vans-e-utilitarios` (categoria "Autos e peças › Carros, vans e utilitários"). Fora
+   dessa categoria a extensão não faz nada.
 3. **📊 Executar Análise** → lê só a página atual e mostra a lista (log no console da janela).
    Ou **📚 Varrer páginas** (campo "até N" + "rolar cada página" + "pular os que já estão no
    DB" + "salvar no DB") → percorre a paginação do OLX (`?o=2`, `?o=3`, …) a partir da página
@@ -232,6 +235,9 @@ OLX_SCRAPPER/
 - O service worker MV3 pode ser encerrado em lotes muito longos de "Analisar selecionados".
 - Sem testes automatizados ainda.
 - Categorização assume **veículos**; outras categorias do OLX não foram tratadas.
+- O recorte "só carros" depende do campo `tipo` que a **IA** infere. Se ela errar o `tipo`
+  (ou não devolver), o filtro é permissivo: **sem `tipo` => trata como carro**. A lista de
+  tipos não-carro fica em `NAO_CARRO` no `background.ts`.
 
 ---
 
@@ -240,6 +246,18 @@ OLX_SCRAPPER/
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
 ### 2026-09-10
+
+- **Extensão restrita a CARROS.** Pedido: "que a extensão se limite à análise somente de
+  carros". O prompt do proxy (`buildPrompt`) agora pede um campo `tipo` por anúncio
+  (`"carro"`, `"moto"`, `"caminhao"`, `"onibus"`, `"van"`, `"nautica"`, `"outro"`). No
+  `background.ts`, novo helper `isCarro()` + set `NAO_CARRO`: `analyze`, `crawlListing` e
+  `analyzeSelected` descartam o que não é carro — não entra na lista, não é gravado no
+  `db.json` e sai da seleção. Filtro **permissivo**: anúncio sem `tipo` conhecido continua
+  tratado como carro. A janela mostra a contagem de "não-carro(s) ocultado(s)/ignorado(s)".
+- **Só age na categoria de carros.** `getActiveOlxTab()` agora exige que a URL da aba do OLX
+  contenha `carros-vans-e-utilitarios` (regex `OLX_CARROS_RE` + `isCarrosOlxUrl()`). Fora
+  dessa categoria, todas as ações (`analyze`, `autoScroll`, `crawlListing`, `analyzeSelected`)
+  falham com "Abra uma página de carros do OLX (URL com 'carros-vans-e-utilitarios')".
 
 - **"Selecionar todas" + não refazer o que já foi feito.** Na toolbar da janela: botão
   **"selecionar todas (N)"** marca todos os itens da varredura (todas as páginas da lista de
@@ -318,7 +336,7 @@ OLX_SCRAPPER/
 - **Listagem paginada (5 por página)** na janela da extensão, com miniatura, linha da IA,
   metadados, preço e link, além de "‹ Anterior / Próxima ›".
 - **Categorização por IA.** O proxy passou a pedir JSON estrito (`response_format:
-  json_object`, `temperature: 0`) e devolve `categorias[]` (marca/modelo/versão/ano/motor/
+  json_object`, `temperature: 0`) e devolve `categorias[]` (tipo/marca/modelo/versão/ano/motor/
   combustível/câmbio/portas/carroceria). Antes era uma análise de mercado em texto livre.
 - **Captura de `km` e `cor`** como campos próprios do `AdCard` (além de continuarem em
   `details[]`), com `km` numérico.

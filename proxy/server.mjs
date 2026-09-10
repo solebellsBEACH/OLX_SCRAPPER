@@ -96,9 +96,12 @@ async function readBody(req) {
 function buildPrompt(sections) {
   return [
     "Categorize CADA anúncio de veículo do OLX abaixo a partir do título e dos detalhes.",
+    "A extensão analisa SOMENTE CARROS de passeio: classifique o campo 'tipo' para que",
+    "moto, caminhão, ônibus, van, náutica, etc. possam ser descartados depois.",
     "Responda SOMENTE com um objeto JSON válido, sem texto fora do JSON, no formato:",
     '{ "anuncios": [ {',
     '  "index": number,',
+    '  "tipo": string|null,            // "carro", "moto", "caminhao", "onibus", "van", "nautica", "outro"',
     '  "marca": string|null,           // ex.: "Honda"',
     '  "modelo": string|null,          // ex.: "HR-V"',
     '  "versao": string|null,          // ex.: "EX", "EXL", "Touring"',
@@ -110,6 +113,7 @@ function buildPrompt(sections) {
     '  "carroceria": string|null       // "SUV", "Hatch", "Sedã", "Picape", etc.',
     "} ] }",
     "Use null quando o dado não aparecer. Não invente. Mantenha 'index' igual ao do input.",
+    "Em 'tipo' use \"carro\" para automóveis de passeio (hatch, sedã, SUV, picape leve).",
     "Se houver o campo 'description', use-o também como fonte.",
     "",
     "ANÚNCIOS:",

@@ -17,6 +17,8 @@
  */
 
 const OLX_URL_RE = /^https:\/\/([a-z0-9-]+\.)*olx\.com\.br\//i;
+/** A extensão só age em páginas da categoria de carros do OLX. */
+const OLX_CARROS_RE = /olx\.com\.br\/[^?#]*carros-vans-e-utilitarios/i;
 const PROXY_BASE = "http://localhost:8787";
 const PROXY_URL = `${PROXY_BASE}/analyze`;
 const DB_URL = `${PROXY_BASE}/db`;
@@ -50,7 +52,7 @@ async function openPanel(): Promise<void> {
  *  Tipos                                                              *
  * ------------------------------------------------------------------ */
 
-type Categoria = Record<string, unknown> & { index?: number };
+type Categoria = Record<string, unknown> & { index?: number; tipo?: string | null };
 type Card = Record<string, unknown> & { index?: number; id?: string | null; url?: string | null };
 type Item = Card & {
   categoria: Categoria | null;
@@ -66,6 +68,38 @@ interface AnalyzeResult {
   categorias: unknown[] | null;
   raw: string | null;
   aiError?: string;
+  /** anúncios descartados por NÃO serem carro (moto, caminhão, náutica, ...). */
+  nonCar?: number;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Filtro: a extensão analisa SOMENTE carros de passeio              *
+ * ------------------------------------------------------------------ */
+
+/** `tipo` (vindo da IA) que representa algo que NÃO é carro. */
+const NAO_CARRO = new Set([
+  "moto", "motocicleta", "motoneta", "scooter", "ciclomotor",
+  "caminhao", "caminhão", "onibus", "ônibus", "microonibus", "micro-ônibus",
+  "van", "kombi", "furgao", "furgão", "reboque", "trailer", "carreta",
+  "trator", "maquina", "máquina", "quadriciclo", "triciclo", "utv",
+  "jetski", "jet ski", "lancha", "barco", "nautica", "náutica", "aeronave",
+  "outro", "outros", "nao informado", "não informado",
+]);
+
+/** Normaliza o `tipo` da categoria (minúsculo, sem espaços nas pontas). */
+function tipoVeiculo(cat: unknown): string | null {
+  const raw =
+    cat && typeof cat === "object" && typeof (cat as Record<string, unknown>).tipo === "string"
+      ? ((cat as Record<string, unknown>).tipo as string)
+      : "";
+  const t = raw.toLowerCase().trim();
+  return t || null;
+}
+
+/** É carro de passeio? Sem `tipo` conhecido => assume que sim (não descarta à toa). */
+function isCarro(cat: unknown): boolean {
+  const t = tipoVeiculo(cat);
+  return !t || !NAO_CARRO.has(t);
 }
 
 type DbRecord = Record<string, unknown> & { id: string; analyzedAt: number };
@@ -184,15 +218,23 @@ function sameListing(a: string, b: string): boolean {
   }
 }
 
+/** Aba do OLX na categoria de carros (URL com `carros-vans-e-utilitarios`). */
+function isCarrosOlxUrl(url: string | undefined): boolean {
+  return Boolean(url && OLX_URL_RE.test(url) && OLX_CARROS_RE.test(url));
+}
+
 async function getActiveOlxTab(): Promise<chrome.tabs.Tab & { id: number }> {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (active?.id !== undefined && active.url && OLX_URL_RE.test(active.url)) {
+  if (active?.id !== undefined && isCarrosOlxUrl(active.url)) {
     return active as chrome.tabs.Tab & { id: number };
   }
   const olxTabs = await chrome.tabs.query({ url: "https://*.olx.com.br/*" });
-  const chosen = olxTabs.find((t) => t.active) ?? olxTabs[0];
+  const chosen =
+    olxTabs.find((t) => t.active && isCarrosOlxUrl(t.url)) ?? olxTabs.find((t) => isCarrosOlxUrl(t.url));
   if (!chosen || chosen.id === undefined) {
-    throw new Error("Nenhuma aba do OLX aberta. Abra uma página do OLX e tente de novo.");
+    throw new Error(
+      "Abra uma página de carros do OLX (URL com 'carros-vans-e-utilitarios') e tente de novo.",
+    );
   }
   return chosen as chrome.tabs.Tab & { id: number };
 }
@@ -384,11 +426,16 @@ async function analyze(): Promise<AnalyzeResult> {
 
   const { categorias, raw, error } = await categorize(cards);
 
+  const merged = mergeItems(cards, categorias, db);
+  const items = merged.filter((it) => isCarro(it.categoria));
+  const nonCar = merged.length - items.length;
+
   return {
-    count: cards.length,
-    items: mergeItems(cards, categorias, db),
+    count: items.length,
+    items,
     categorias,
     raw,
+    nonCar,
     aiError: error ?? (categorias ? undefined : "IA não retornou JSON válido (veja 'raw')."),
   };
 }
@@ -544,7 +591,11 @@ async function crawlListing({
 
   progress(`Categorizando ${allCards.length} anúncio(s) novo(s) no DeepSeek...`, { state: "running" });
   const { categorias, error } = await categorizeInChunks(allCards, 20);
-  const items = mergeItems(allCards, categorias, db);
+  const merged = mergeItems(allCards, categorias, db);
+  // a extensão só trabalha com carros: descarta moto, caminhão, náutica, etc.
+  const items = merged.filter((it) => isCarro(it.categoria));
+  const nonCar = merged.length - items.length;
+  if (nonCar > 0) progress(`${nonCar} anúncio(s) descartado(s) por não serem carro.`);
 
   // grava no db.json — só os que ainda não existem, pra não sobrescrever um
   // registro completo (detail da página) com o raso da listagem.
@@ -570,16 +621,17 @@ async function crawlListing({
   }
 
   return {
-    count: allCards.length,
+    count: items.length,
     items: items.map((it) => ({ ...it, inDb: typeof it.id === "string" && it.id in db })),
     categorias,
     raw: null,
     pages: perPage.length,
-    newCount: allCards.length,
+    newCount: items.length,
     skipped,
     duplicates,
     savedToDb,
     saveError,
+    nonCar,
     perPage,
     aiError: error ?? (categorias ? undefined : "IA não retornou JSON válido."),
   } as CrawlResult;
@@ -594,6 +646,8 @@ interface SelectedResult {
   errors: Array<{ id: string; error: string }>;
   /** ids ignorados por já terem os dados da página no db.json. */
   skipped: string[];
+  /** ids ignorados por não serem carro (moto, caminhão, náutica, ...). */
+  nonCar: string[];
 }
 
 async function analyzeSelected(targets: Target[], force = false): Promise<SelectedResult> {
@@ -602,6 +656,7 @@ async function analyzeSelected(targets: Target[], force = false): Promise<Select
   const analyzed: DbRecord[] = [];
   const errors: Array<{ id: string; error: string }> = [];
   const skipped: string[] = [];
+  const nonCar: string[] = [];
 
   // pula o que já foi feito: id no db.json e NÃO raso (já tem detail da página)
   const db = await dbAll();
@@ -646,6 +701,12 @@ async function analyzeSelected(targets: Target[], force = false): Promise<Select
       const { categorias } = await categorize([detailToSection(t.id, data)]);
       const categoria = Array.isArray(categorias) ? (categorias[0] ?? null) : null;
 
+      if (!isCarro(categoria)) {
+        nonCar.push(t.id);
+        progress(`↷ ${t.id} ignorado — não é carro (${pos})`, { id: t.id, state: "error" });
+        continue;
+      }
+
       const record = await dbUpsert(t.id, {
         url: t.url,
         detail: data,
@@ -666,7 +727,7 @@ async function analyzeSelected(targets: Target[], force = false): Promise<Select
     await chrome.tabs.update(tabId, { url: originalUrl }).catch(() => {});
   }
 
-  return { analyzed, errors, skipped };
+  return { analyzed, errors, skipped, nonCar };
 }
 
 /* ------------------------------------------------------------------ *

@@ -10,6 +10,7 @@
 const PAGE_SIZE = 5;
 
 interface Categoria {
+  tipo?: string | null;
   marca?: string | null;
   modelo?: string | null;
   versao?: string | null;
@@ -44,6 +45,8 @@ interface AnalyzeResult {
   categorias?: unknown[] | null;
   raw?: string | null;
   aiError?: string;
+  /** anúncios descartados por não serem carro (moto, caminhão, náutica, ...). */
+  nonCar?: number;
   /** só no "Varrer páginas": quantas páginas foram lidas. */
   pages?: number;
   newCount?: number;
@@ -335,10 +338,11 @@ analyzeBtn.addEventListener("click", () => {
       renderPage();
       logSections(items);
       logCategorias(result.categorias, result.raw);
+      const naoCarro = result.nonCar ? ` · ${result.nonCar} não-carro(s) ocultado(s)` : "";
       setStatus(
         result.aiError
-          ? `⚠️ ${result.count} anúncios listados. IA: ${result.aiError}`
-          : `✅ ${result.count} anúncios categorizados (console F12 + lista abaixo)`,
+          ? `⚠️ ${result.count} carro(s) listado(s)${naoCarro}. IA: ${result.aiError}`
+          : `✅ ${result.count} carro(s) categorizado(s)${naoCarro} (console F12 + lista abaixo)`,
       );
     } finally {
       lockButtons(false);
@@ -375,6 +379,7 @@ crawlBtn.addEventListener("click", () => {
       const extra = [
         result.savedToDb ? `${result.savedToDb} salvos no DB` : "",
         result.saveError ? `NÃO salvo no DB: ${result.saveError}` : "",
+        result.nonCar ? `${result.nonCar} não-carro(s) ignorado(s)` : "",
         result.skipped ? `${result.skipped} já no DB (pulados)` : "",
         result.duplicates ? `${result.duplicates} repetidos na paginação` : "",
       ]
@@ -468,6 +473,7 @@ analyzeSelBtn.addEventListener("click", () => {
         analyzed: Array<Record<string, unknown> & { id: string; url?: string }>;
         errors: Array<{ id: string; error: string }>;
         skipped?: string[];
+        nonCar?: string[];
       };
 
       console.log("%c=== ANÁLISE DOS ANÚNCIOS (páginas) ===", "font-weight:bold");
@@ -482,6 +488,7 @@ analyzeSelBtn.addEventListener("click", () => {
       // tira da seleção o que já foi analisado com sucesso (não refazer)
       for (const rec of result.analyzed) selected.delete(rec.id);
       for (const id of result.skipped ?? []) selected.delete(id);
+      for (const id of result.nonCar ?? []) selected.delete(id);
 
       await refreshDbFlags();
       rowState.clear();
@@ -489,9 +496,11 @@ analyzeSelBtn.addEventListener("click", () => {
       const okN = result.analyzed.length;
       const errN = result.errors.length;
       const skN = result.skipped?.length ?? 0;
+      const ncN = result.nonCar?.length ?? 0;
       setStatus(
         `✅ ${okN} salvo(s) no DB` +
           (skN ? ` · ${skN} já analisado(s) (pulados)` : "") +
+          (ncN ? ` · ${ncN} não-carro(s) ignorado(s)` : "") +
           (errN ? ` · ${errN} com erro` : "") +
           `. Use "Ver DB" para conferir.`,
       );
