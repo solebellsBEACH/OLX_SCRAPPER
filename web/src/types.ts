@@ -38,6 +38,9 @@ export interface AdCategoria {
   cambio: string | null;
   portas: number | null;
   carroceria: string | null;
+  /** 0-100: condição estimada do carro pela IA a partir do anúncio (ver README). */
+  score?: number | null;
+  scoreMotivo?: string | null;
 }
 
 export interface DbRecord {
@@ -80,6 +83,25 @@ export interface AiProviderConfig {
 export interface AiConfig {
   provider: AiProviderId;
   providers: Record<AiProviderId, AiProviderConfig>;
+}
+
+/** Um item do ranking devolvido por POST /compare (do melhor pro pior). */
+export interface CompareRankingItem {
+  id: string;
+  posicao: number;
+  texto: string;
+}
+
+/** Métricas técnicas estimadas por POST /metrics (conhecimento geral da IA sobre o modelo). */
+export interface CarMetric {
+  id: string;
+  consumoCidadeGasolina: number | null;
+  consumoEstradaGasolina: number | null;
+  consumoCidadeAlcool: number | null;
+  consumoEstradaAlcool: number | null;
+  potenciaCv: number | null;
+  pesoKg: number | null;
+  nota: string | null;
 }
 
 /** Linha achatada usada pela tabela e pelos agregados do dashboard. */

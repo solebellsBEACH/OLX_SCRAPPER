@@ -6,11 +6,38 @@
 //   POST   /config  -> { provider?, deepseek?: {...}, openai?: {...} } => { ok, config: AiConfig }
 //                       cada bloco de provedor aceita { apiUrl?, model?, timeoutMs?, apiKey? }
 //   POST   /analyze -> { sections:[...] } => { ok, categorias, raw, usage }  (usa o provedor ativo)
+//   POST   /compare -> { cars:[...] } => { ok, ranking, raw, usage }  (comparador, "Comparar com IA")
+//   POST   /metrics -> { cars:[...] } => { ok, metrics, raw, usage }  (comparador, "Exibir métricas")
 //   GET    /db      -> { ok, db: { [id]: DbRecord } }
 //   POST   /db      -> { id, record } | { records:[...] } | { db:{...} }  (merge por id)
 //   DELETE /db      -> zera o db
 
-import type { AiConfig, AiProviderId, Db, DbRecord, HealthResponse } from "@/types";
+import type {
+  AiConfig,
+  AiProviderId,
+  CarMetric,
+  CompareRankingItem,
+  Db,
+  DbRecord,
+  HealthResponse,
+} from "@/types";
+
+/** Resumo de um carro mandado pro proxy em /compare e /metrics — não reenvia o registro inteiro. */
+export interface CompareCarInput {
+  id: string;
+  titulo?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  versao?: string | null;
+  ano?: number | null;
+  motor?: string | null;
+  combustivel?: string | null;
+  cambio?: string | null;
+  carroceria?: string | null;
+  km?: number | null;
+  preco?: number | null;
+  score?: number | null;
+}
 
 const DEFAULT_BASE = "http://localhost:8787";
 const LS_KEY = "olx.proxyUrl";
@@ -147,6 +174,30 @@ export const api = {
     return request("/analyze", {
       method: "POST",
       body: JSON.stringify({ sections }),
+    });
+  },
+
+  /** "Comparar com IA": ranking do melhor pro pior, com uma frase de justificativa cada. */
+  async compareCars(cars: CompareCarInput[]): Promise<{
+    ok: boolean;
+    ranking: CompareRankingItem[] | null;
+    raw: string | null;
+  }> {
+    return request("/compare", {
+      method: "POST",
+      body: JSON.stringify({ cars }),
+    });
+  },
+
+  /** "Exibir métricas": consumo álcool/gasolina, cv e peso estimados pela IA (conhecimento geral do modelo). */
+  async carMetrics(cars: CompareCarInput[]): Promise<{
+    ok: boolean;
+    metrics: CarMetric[] | null;
+    raw: string | null;
+  }> {
+    return request("/metrics", {
+      method: "POST",
+      body: JSON.stringify({ cars }),
     });
   },
 };

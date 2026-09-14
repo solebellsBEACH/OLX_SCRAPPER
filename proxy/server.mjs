@@ -15,6 +15,8 @@
  *   POST   /config   -> troca o provedor ativo e/ou atualiza apiUrl/model/timeoutMs/apiKey
  *                       de um provedor específico; grava em proxy/.env
  *   POST   /analyze  -> { sections: AdCard[] }  ->  { ok, categorias, raw, usage }
+ *   POST   /compare  -> { cars: CarInfo[] }     ->  { ok, ranking, raw, usage } (comparador)
+ *   POST   /metrics  -> { cars: CarInfo[] }     ->  { ok, metrics, raw, usage } (consumo/cv/peso)
  *   GET    /db       -> { ok, db }              (conteúdo de <raiz>/db.json)
  *   POST   /db       -> { records:[{id,...}] } | { id, record } | { db:{...} }
  *                       faz merge por id, grava em <raiz>/db.json, devolve { ok, db }
@@ -227,43 +229,37 @@ function buildPrompt(sections) {
   ].join("\n");
 }
 
-function extractCategorias(content) {
+function extractJsonArray(content, ...keys) {
   let parsed;
   try {
     parsed = JSON.parse(content);
   } catch {
-    return { categorias: null, raw: content };
+    return { value: null, raw: content };
   }
-  const categorias = Array.isArray(parsed)
-    ? parsed
-    : (parsed.anuncios ?? parsed.data ?? parsed.items ?? null);
-  return Array.isArray(categorias) ? { categorias, raw: null } : { categorias: null, raw: content };
+  if (Array.isArray(parsed)) return { value: parsed, raw: null };
+  for (const key of keys) {
+    if (Array.isArray(parsed?.[key])) return { value: parsed[key], raw: null };
+  }
+  return { value: null, raw: content };
 }
 
-async function handleAnalyze(req, res) {
+/**
+ * Chama o provedor de IA ativo (DeepSeek/OpenAI — mesmo formato "chat/completions")
+ * com uma lista de `messages` e devolve o texto da resposta já extraído. Concentra
+ * timeout, erros de rede/HTTP e mensagens de erro amigáveis num só lugar — usado por
+ * /analyze, /compare e /metrics.
+ */
+async function callAi(messages, { label = "ia" } = {}) {
   const providerId = ACTIVE_PROVIDER;
   const def = PROVIDER_DEFS[providerId];
   const cfg = activeConfig();
   if (!cfg.apiKey) {
-    return sendJSON(res, 500, { ok: false, error: `${def.envPrefix}_API_KEY ausente em proxy/.env (provedor ativo: ${def.label})` });
-  }
-
-  let sections;
-  try {
-    const parsed = JSON.parse(await readBody(req));
-    sections = Array.isArray(parsed) ? parsed : parsed?.sections;
-    if (!Array.isArray(sections)) throw new Error("esperado um array em 'sections'");
-  } catch (err) {
-    return sendJSON(res, 400, { ok: false, error: `JSON inválido: ${err.message}` });
-  }
-
-  if (sections.length === 0) {
-    return sendJSON(res, 200, { ok: true, provider: providerId, model: cfg.model, count: 0, categorias: [] });
+    return { ok: false, status: 500, error: `${def.envPrefix}_API_KEY ausente em proxy/.env (provedor ativo: ${def.label})` };
   }
 
   const started = Date.now();
   let phase = "awaiting_headers";
-  console.info(`[analyze] início: ${sections.length} anúncio(s), provedor=${providerId}, modelo=${cfg.model}, limite=${cfg.timeoutMs}ms`);
+  console.info(`[${label}] início: provedor=${providerId}, modelo=${cfg.model}, limite=${cfg.timeoutMs}ms`);
   try {
     const upstream = await fetch(cfg.apiUrl, {
       signal: AbortSignal.timeout(cfg.timeoutMs),
@@ -277,13 +273,7 @@ async function handleAnalyze(req, res) {
         temperature: 0,
         stream: false,
         response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: "Você categoriza anúncios de veículos e responde apenas com JSON válido.",
-          },
-          { role: "user", content: buildPrompt(sections) },
-        ],
+        messages,
       }),
     });
 
@@ -300,37 +290,193 @@ async function handleAnalyze(req, res) {
         403: `Acesso à ${def.label} negado. Confira as permissões da sua chave.`,
         429: `A ${def.label} recebeu muitas solicitações. Aguarde um pouco e tente novamente.`,
       })[upstream.status] ?? apiMsg ?? `O serviço ${def.label} está indisponível. Tente novamente em instantes.`;
-      return sendJSON(res, upstream.status, { ok: false, error: detail });
+      return { ok: false, status: upstream.status, error: detail };
     }
 
-    const content = data?.choices?.[0]?.message?.content ?? "";
-    const { categorias, raw } = extractCategorias(content);
-    if (!categorias) {
-      return sendJSON(res, 502, { ok: false, error: "A IA retornou uma resposta inválida. Tente analisar menos anúncios por vez." });
-    }
-
-    return sendJSON(res, 200, {
+    return {
       ok: true,
       provider: providerId,
       model: cfg.model,
-      count: sections.length,
-      categorias,
-      raw,
+      content: data?.choices?.[0]?.message?.content ?? "",
       usage: data?.usage ?? null,
-    });
+    };
   } catch (err) {
     const timedOut = err.name === "TimeoutError" || err.name === "AbortError";
-    console.error(`[analyze] falha: fase=${phase}, duração=${Date.now() - started}ms, tipo=${err.name}, causa=${err.cause?.code ?? "nenhuma"}`);
-    return sendJSON(res, timedOut ? 504 : 502, {
+    console.error(`[${label}] falha: fase=${phase}, duração=${Date.now() - started}ms, tipo=${err.name}, causa=${err.cause?.code ?? "nenhuma"}`);
+    return {
       ok: false,
+      status: timedOut ? 504 : 502,
       code: timedOut ? "AI_TIMEOUT" : "AI_UNAVAILABLE",
       phase,
       elapsedMs: Date.now() - started,
       error: timedOut
         ? `A ${def.label} não concluiu a resposta em ${cfg.timeoutMs / 1000} segundos. Pode haver lentidão no serviço ou na conexão. Aguarde e tente novamente.`
         : `Não foi possível conectar à ${def.label}. Verifique a conexão e tente novamente.`,
-    });
+    };
   }
+}
+
+async function handleAnalyze(req, res) {
+  let sections;
+  try {
+    const parsed = JSON.parse(await readBody(req));
+    sections = Array.isArray(parsed) ? parsed : parsed?.sections;
+    if (!Array.isArray(sections)) throw new Error("esperado um array em 'sections'");
+  } catch (err) {
+    return sendJSON(res, 400, { ok: false, error: `JSON inválido: ${err.message}` });
+  }
+
+  if (sections.length === 0) {
+    return sendJSON(res, 200, { ok: true, provider: ACTIVE_PROVIDER, model: activeConfig().model, count: 0, categorias: [] });
+  }
+
+  const result = await callAi(
+    [
+      { role: "system", content: "Você categoriza anúncios de veículos e responde apenas com JSON válido." },
+      { role: "user", content: buildPrompt(sections) },
+    ],
+    { label: "analyze" },
+  );
+  if (!result.ok) {
+    return sendJSON(res, result.status, { ok: false, code: result.code, phase: result.phase, elapsedMs: result.elapsedMs, error: result.error });
+  }
+
+  const { value: categorias, raw } = extractJsonArray(result.content, "anuncios", "data", "items");
+  if (!categorias) {
+    return sendJSON(res, 502, { ok: false, error: "A IA retornou uma resposta inválida. Tente analisar menos anúncios por vez." });
+  }
+
+  return sendJSON(res, 200, {
+    ok: true,
+    provider: result.provider,
+    model: result.model,
+    count: sections.length,
+    categorias,
+    raw,
+    usage: result.usage,
+  });
+}
+
+/** Resumo enxuto de um carro pra mandar pro prompt (evita reenviar o registro inteiro). */
+function carSummary(car) {
+  return {
+    id: car.id ?? null,
+    titulo: car.titulo ?? car.title ?? null,
+    marca: car.marca ?? null,
+    modelo: car.modelo ?? null,
+    versao: car.versao ?? null,
+    ano: car.ano ?? null,
+    motor: car.motor ?? null,
+    combustivel: car.combustivel ?? null,
+    cambio: car.cambio ?? null,
+    carroceria: car.carroceria ?? null,
+    km: car.km ?? null,
+    preco: car.preco ?? car.price ?? null,
+    score: car.score ?? null,
+  };
+}
+
+function normalizeCars(body) {
+  const cars = Array.isArray(body?.cars) ? body.cars : null;
+  if (!cars || cars.length < 2) return null;
+  return cars.slice(0, 6).map(carSummary);
+}
+
+function buildComparePrompt(cars) {
+  return [
+    "Compare os carros abaixo (dados de anúncios do OLX) e ordene do MELHOR pro pior",
+    "custo-benefício geral, considerando preço, km, ano, score de condição (se houver) e",
+    "o que se sabe sobre confiabilidade/custo de manutenção do modelo.",
+    "Responda SOMENTE com um objeto JSON válido, no formato:",
+    '{ "ranking": [ { "id": string, "posicao": number, "texto": string } ] }',
+    "Um item por carro (mesma quantidade recebida), ordenado do 1º (melhor) ao último.",
+    "'texto': 1-2 frases em português, objetivas, tipo \"é o melhor pois...\" pro 1º colocado",
+    "e comparando com os de cima pros demais (ex.: \"fica atrás do 1º por ter mais km...\").",
+    "Use 'id' EXATAMENTE como veio no input. Não invente dados que não foram informados.",
+    "",
+    "CARROS:",
+    JSON.stringify(cars),
+  ].join("\n");
+}
+
+function buildMetricsPrompt(cars) {
+  return [
+    "Para CADA carro abaixo (marca/modelo/versão/ano/motor), estime métricas técnicas",
+    "TÍPICAS de fábrica para essa versão específica, usando seu conhecimento geral sobre",
+    "o modelo (não há descrição de anúncio aqui, então não invente estado de conservação).",
+    "Responda SOMENTE com um objeto JSON válido, no formato:",
+    '{ "metrics": [ {',
+    '  "id": string,',
+    '  "consumoCidadeGasolina": number|null,   // km/l, cidade, gasolina',
+    '  "consumoEstradaGasolina": number|null,  // km/l, estrada, gasolina',
+    '  "consumoCidadeAlcool": number|null,     // km/l, cidade, etanol (null se não for flex)',
+    '  "consumoEstradaAlcool": number|null,    // km/l, estrada, etanol (null se não for flex)',
+    '  "potenciaCv": number|null,              // cavalos (gasolina; se flex, use o maior)',
+    '  "pesoKg": number|null,                  // peso em ordem de marcha, kg',
+    '  "nota": string|null                     // 1 frase: ressalva/observação, se houver',
+    "} ] }",
+    "Use 'id' EXATAMENTE como veio no input. Se não souber a versão com confiança, responda",
+    "os campos numéricos como null em vez de chutar — não invente números sem base nenhuma.",
+    "",
+    "CARROS:",
+    JSON.stringify(cars),
+  ].join("\n");
+}
+
+async function handleCompare(req, res) {
+  let payload;
+  try {
+    payload = JSON.parse(await readBody(req));
+  } catch (err) {
+    return sendJSON(res, 400, { ok: false, error: `JSON inválido: ${err.message}` });
+  }
+  const cars = normalizeCars(payload);
+  if (!cars) return sendJSON(res, 400, { ok: false, error: "envie { cars: [...] } com pelo menos 2 carros" });
+
+  const result = await callAi(
+    [
+      { role: "system", content: "Você compara carros anunciados e responde apenas com JSON válido." },
+      { role: "user", content: buildComparePrompt(cars) },
+    ],
+    { label: "compare" },
+  );
+  if (!result.ok) {
+    return sendJSON(res, result.status, { ok: false, code: result.code, error: result.error });
+  }
+
+  const { value: ranking, raw } = extractJsonArray(result.content, "ranking", "data", "items");
+  if (!ranking) {
+    return sendJSON(res, 502, { ok: false, error: "A IA retornou uma resposta inválida." });
+  }
+  return sendJSON(res, 200, { ok: true, provider: result.provider, model: result.model, ranking, raw, usage: result.usage });
+}
+
+async function handleMetrics(req, res) {
+  let payload;
+  try {
+    payload = JSON.parse(await readBody(req));
+  } catch (err) {
+    return sendJSON(res, 400, { ok: false, error: `JSON inválido: ${err.message}` });
+  }
+  const cars = Array.isArray(payload?.cars) ? payload.cars.slice(0, 6).map(carSummary) : null;
+  if (!cars || cars.length === 0) return sendJSON(res, 400, { ok: false, error: "envie { cars: [...] } com pelo menos 1 carro" });
+
+  const result = await callAi(
+    [
+      { role: "system", content: "Você estima especificações técnicas de carros e responde apenas com JSON válido." },
+      { role: "user", content: buildMetricsPrompt(cars) },
+    ],
+    { label: "metrics" },
+  );
+  if (!result.ok) {
+    return sendJSON(res, result.status, { ok: false, code: result.code, error: result.error });
+  }
+
+  const { value: metrics, raw } = extractJsonArray(result.content, "metrics", "data", "items");
+  if (!metrics) {
+    return sendJSON(res, 502, { ok: false, error: "A IA retornou uma resposta inválida." });
+  }
+  return sendJSON(res, 200, { ok: true, provider: result.provider, model: result.model, metrics, raw, usage: result.usage });
 }
 
 /**
@@ -491,6 +637,12 @@ const server = createServer((req, res) => {
   if (req.method === "POST" && req.url === "/analyze") {
     return void handleAnalyze(req, res);
   }
+  if (req.method === "POST" && req.url === "/compare") {
+    return void handleCompare(req, res);
+  }
+  if (req.method === "POST" && req.url === "/metrics") {
+    return void handleMetrics(req, res);
+  }
   if (req.method === "GET" && req.url === "/db") {
     try {
       return sendJSON(res, 200, { ok: true, db: readDb() });
@@ -514,7 +666,7 @@ const server = createServer((req, res) => {
   }
   sendJSON(res, 404, {
     ok: false,
-    error: "Rotas: GET /health, GET|POST /config, POST /analyze, GET|POST|DELETE /db, GET /img?u=",
+    error: "Rotas: GET /health, GET|POST /config, POST /analyze, POST /compare, POST /metrics, GET|POST|DELETE /db, GET /img?u=",
   });
 });
 

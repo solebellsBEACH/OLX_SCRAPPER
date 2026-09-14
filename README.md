@@ -254,6 +254,31 @@ OLX_SCRAPPER/
 
 ### 2026-09-14
 
+- **Comparador (`web/`) ganhou 2 botões com IA: "Comparar com IA" e "Exibir métricas".**
+  Duas rotas novas no proxy — `POST /compare` e `POST /metrics` — reaproveitando a mesma
+  infra multi-provedor do `/analyze`; extraí o fetch/timeout/tratamento de erro de
+  `handleAnalyze()` pra um helper `callAi(messages, {label})` compartilhado pelas três rotas
+  (evita triplicar ~50 linhas de tratamento de erro HTTP/timeout).
+  - **"Comparar com IA"**: manda os dados já conhecidos dos carros selecionados (marca,
+    modelo, versão, ano, km, preço, score de condição se houver) e pede um **ranking** do
+    melhor pro pior custo-benefício, com 1-2 frases de justificativa por carro — exatamente
+    "o carro X é melhor pois..., seguido dos outros". Renderizado como lista ordenada, o 1º
+    colocado destacado (borda + fundo verde clarinho).
+  - **"Exibir métricas"**: pede à IA consumo médio cidade/estrada em **gasolina e álcool**,
+    **potência (cv)** e **peso (kg)** — a partir do conhecimento geral dela sobre aquela
+    marca/modelo/versão/ano (não vem do anúncio, que não traz ficha técnica). Os resultados
+    entram como linhas extras na própria tabela de comparação (Consumo cidade/estrada
+    gasolina/álcool, Potência, Peso, Obs. da IA), lado a lado com preço/km/ano que já
+    existiam. O prompt pede explicitamente `null` em vez de inventar número quando a IA não
+    tem confiança na versão exata.
+  - **A comparação em si (a tabela) continua 100% sem IA** — os botões são opt-in; "quero
+    poder usar a IA ou não" foi interpretado como: a tabela estática de sempre não muda em
+    nada, a IA só entra se o usuário clicar em um dos dois botões nesta sessão.
+  - `web/src/lib/api.ts` ganhou `compareCars()`/`carMetrics()` (tipo `CompareCarInput`
+    resume o carro pro prompt, sem reenviar o registro inteiro) e `web/src/types.ts` ganhou
+    `CompareRankingItem`/`CarMetric` + o campo `score`/`scoreMotivo` em `AdCategoria` (pra
+    reaproveitar o score de condição — feature registrada mais acima neste histórico — como
+    sinal no ranking).
 - **"Exibir indicadores" virou um toggle: ativado mostra "Ocultar indicadores".** Clicar de
   novo remove a borda/score pintados na página do OLX e **pausa** o auto-mark (senão a
   marcação reapareceria sozinha ~1s depois, já que o `MutationObserver` do content script
