@@ -20,6 +20,9 @@ interface Categoria {
   cambio?: string | null;
   portas?: number | null;
   carroceria?: string | null;
+  /** 0-100: condição estimada do carro pela IA (só em itens já analisados a fundo). */
+  score?: number | null;
+  scoreMotivo?: string | null;
 }
 
 interface Item {
@@ -122,6 +125,7 @@ const toolbarEl = $<HTMLDivElement>("toolbar");
 const dbDumpEl = $<HTMLPreElement>("dbDump");
 const analyzeBtn = $<HTMLButtonElement>("analyzeBtn");
 const scrollBtn = $<HTMLButtonElement>("scrollBtn");
+const showIndicatorsBtn = $<HTMLButtonElement>("showIndicatorsBtn");
 const crawlBtn = $<HTMLButtonElement>("crawlBtn");
 const maxPagesEl = $<HTMLInputElement>("maxPages");
 const scrollEachEl = $<HTMLInputElement>("scrollEach");
@@ -135,10 +139,27 @@ const clearSelBtn = $<HTMLButtonElement>("clearSelBtn");
 const analyzeSelBtn = $<HTMLButtonElement>("analyzeSelBtn");
 const viewDbBtn = $<HTMLButtonElement>("viewDbBtn");
 const clearDbBtn = $<HTMLButtonElement>("clearDbBtn");
+const tabCrawlBtn = $<HTMLButtonElement>("tabCrawlBtn");
+const tabAnalyzeBtn = $<HTMLButtonElement>("tabAnalyzeBtn");
+const panelCrawl = $<HTMLElement>("panelCrawl");
+const panelAnalyze = $<HTMLElement>("panelAnalyze");
 
 if (new URLSearchParams(location.search).has("tab")) {
   document.body.classList.add("as-tab");
 }
+
+/* ---------- páginas do popup: "Varrer páginas" / "Analisar página" ---------- */
+
+function showTab(tab: "crawl" | "analyze"): void {
+  const isCrawl = tab === "crawl";
+  panelCrawl.hidden = !isCrawl;
+  panelAnalyze.hidden = isCrawl;
+  tabCrawlBtn.setAttribute("aria-selected", String(isCrawl));
+  tabAnalyzeBtn.setAttribute("aria-selected", String(!isCrawl));
+}
+
+tabCrawlBtn.addEventListener("click", () => showTab("crawl"));
+tabAnalyzeBtn.addEventListener("click", () => showTab("analyze"));
 
 let items: Item[] = [];
 let page = 0;
@@ -166,6 +187,7 @@ function lockButtons(lock: boolean): void {
   analyzeBtn.textContent = lock ? "Processando..." : "Analisar página";
   analyzeBtn.disabled = lock;
   scrollBtn.disabled = lock;
+  showIndicatorsBtn.disabled = lock;
   crawlBtn.disabled = lock;
   selectAllBtn.disabled = lock || items.length === 0;
   clearSelBtn.disabled = lock || selected.size === 0;
@@ -209,6 +231,7 @@ function renderItem(it: Item): HTMLDivElement {
   row.className = "item";
   row.dataset.id = id;
   if (id && selected.has(id)) row.classList.add("sel");
+  row.classList.add(it.deepAnalyzed ? "done" : "pending");
 
   const pick = document.createElement("div");
   pick.className = "pick";
@@ -263,10 +286,13 @@ function renderItem(it: Item): HTMLDivElement {
   body.appendChild(price);
 
   const state = id ? rowState.get(id) : undefined;
+  const score = it.categoria?.score;
   if (state === "running") body.appendChild(badge("run", "⏳ analisando…"));
   else if (state === "error") body.appendChild(badge("err", "✖ falhou"));
-  else if (state === "done" || it.deepAnalyzed) body.appendChild(badge("db", "✔ analisado"));
-  else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB (raso)"));
+  else if (state === "done" || it.deepAnalyzed) {
+    body.appendChild(badge("db", "✔ analisado"));
+    if (typeof score === "number") body.appendChild(scoreBadge(score));
+  } else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB (raso)"));
 
   if (it.url) {
     const link = document.createElement("a");
@@ -286,6 +312,16 @@ function badge(kind: "db" | "run" | "err", text: string): HTMLSpanElement {
   const b = document.createElement("span");
   b.className = `badge ${kind}`;
   b.textContent = text;
+  return b;
+}
+
+/** Badge do score de condição (0-100): mesmo esquema de cor usado nos cards do OLX. */
+function scoreBadge(score: number): HTMLSpanElement {
+  const b = document.createElement("span");
+  b.className = "badge score";
+  if (score < 50) b.dataset.tier = "low";
+  else if (score < 80) b.dataset.tier = "mid";
+  b.textContent = `Score ${Math.round(score)}`;
   return b;
 }
 
@@ -347,6 +383,10 @@ analyzeBtn.addEventListener("click", () => {
       renderPage();
       logSections(items);
       logCategorias(result.categorias, result.raw);
+      // "Analisar página" já pinta os cards no OLX (background chama markCardsOnPage) —
+      // sincroniza o rótulo do botão pra refletir isso.
+      indicatorsShown = true;
+      setIndicatorsButtonLabel();
       const naoCarro = result.nonCar ? ` · ${result.nonCar} não-carro(s) ocultado(s)` : "";
       setStatus(
         result.aiError
@@ -424,6 +464,54 @@ scrollBtn.addEventListener("click", () => {
       lockButtons(false);
     }
   })();
+});
+
+/** Estado do botão "Exibir/Ocultar indicadores" — só liga quando o usuário clica em exibir. */
+let indicatorsShown = false;
+
+function setIndicatorsButtonLabel(): void {
+  showIndicatorsBtn.innerHTML = indicatorsShown
+    ? '<span class="btn-ico">🚫</span> Ocultar indicadores'
+    : '<span class="btn-ico">🟢</span> Exibir indicadores';
+}
+
+async function showIndicatorsClick(): Promise<void> {
+  lockButtons(true);
+  setStatus("⏳ Verificando indicadores já salvos no DB...");
+  try {
+    const response = await send("showIndicators");
+    if (!response.ok) {
+      setStatus(`❌ ${response.error ?? "Erro desconhecido."}`);
+      return;
+    }
+    const r = response.result as unknown as { count: number; done: number; pending: number };
+    indicatorsShown = true;
+    setIndicatorsButtonLabel();
+    setStatus(
+      r.count === 0
+        ? "ℹ️ Nenhum card encontrado nesta página."
+        : `✅ ${r.count} card(s) na tela — ${r.done} já analisado(s) (verde) · ${r.pending} pendente(s) (amarelo).`,
+    );
+  } finally {
+    lockButtons(false);
+  }
+}
+
+async function hideIndicatorsClick(): Promise<void> {
+  lockButtons(true);
+  setStatus("⏳ Ocultando indicadores...");
+  try {
+    const response = await send("hideIndicators");
+    indicatorsShown = false;
+    setIndicatorsButtonLabel();
+    setStatus(response.ok ? "✅ Indicadores ocultados." : `❌ ${response.error ?? "Erro."}`);
+  } finally {
+    lockButtons(false);
+  }
+}
+
+showIndicatorsBtn.addEventListener("click", () => {
+  void (indicatorsShown ? hideIndicatorsClick() : showIndicatorsClick());
 });
 
 selAllBtn.addEventListener("change", () => {

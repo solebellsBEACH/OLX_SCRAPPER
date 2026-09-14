@@ -352,11 +352,21 @@ function mergeItems(cards: Card[], categorias: unknown[] | null, db: Record<stri
   return cards.map((card, i) => {
     const id = typeof card.id === "string" ? card.id : null;
     const rec = id ? db[id] : undefined;
+    const deepAnalyzed = Boolean(rec && !(rec as Record<string, unknown>).shallow);
+    const fresh = byIndex.get(typeof card.index === "number" ? card.index : i) ?? null;
+    // A recategorização da listagem só vê título/detalhes (sem descrição), então quase
+    // nunca traz score. Se o item já foi analisado a fundo e tem score salvo no DB, usa
+    // esse (mais rico) em vez do score (quase sempre null) que acabou de vir da IA.
+    const storedScore = deepAnalyzed ? scoreOf((rec as Record<string, unknown>).categoria) : null;
+    const categoria =
+      storedScore !== null
+        ? { ...(fresh ?? {}), score: storedScore, scoreMotivo: ((rec as Record<string, unknown>).categoria as Categoria | undefined)?.scoreMotivo ?? null }
+        : fresh;
     return {
       ...card,
-      categoria: byIndex.get(typeof card.index === "number" ? card.index : i) ?? null,
+      categoria,
       inDb: Boolean(rec),
-      deepAnalyzed: Boolean(rec && !(rec as Record<string, unknown>).shallow),
+      deepAnalyzed,
     };
   });
 }
@@ -416,6 +426,121 @@ function itemToRecord(item: Item): DbRecord | null {
   } as DbRecord;
 }
 
+/** Score (0-100) de condição do carro, se a categoria já tiver um. */
+function scoreOf(cat: unknown): number | null {
+  const v = cat && typeof cat === "object" ? (cat as Record<string, unknown>).score : undefined;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Para itens já analisados a fundo (estão no db.json com `detail`) mas cuja
+ * categoria ainda não tem `score`, pede à IA só o score — usando os dados da
+ * página que JÁ estão salvos (sem navegar de novo até o anúncio). Assim, um
+ * carro analisado antes desta feature existir ganha o score assim que
+ * aparecer de novo na tela do "Analisar página".
+ */
+async function backfillScores(items: Item[], db: Record<string, DbRecord>): Promise<void> {
+  const pending = items.filter((it) => {
+    const id = typeof it.id === "string" ? it.id : null;
+    if (!id || !it.deepAnalyzed) return false;
+    const rec = db[id];
+    return Boolean(rec) && scoreOf((rec as Record<string, unknown>).categoria) === null;
+  });
+  if (pending.length === 0) return;
+
+  progress(`Calculando score de condição para ${pending.length} anúncio(s) já analisado(s)...`, { state: "running" });
+  const sections = pending.map((it, i) => {
+    const id = it.id as string;
+    const rec = db[id] as unknown as { detail?: Record<string, unknown> };
+    return { ...detailToSection(id, rec.detail ?? null), index: i };
+  });
+  const { categorias } = await categorizeInChunks(sections as unknown as Card[]);
+  if (!Array.isArray(categorias)) return;
+
+  for (let i = 0; i < pending.length; i += 1) {
+    const it = pending[i];
+    const id = it.id as string;
+    const scoreCat = categorias[i] as Categoria | undefined;
+    const score = scoreOf(scoreCat);
+    if (score === null) continue;
+    const rec = db[id] as unknown as { categoria?: Categoria | null };
+    const mergedCategoria = { ...(rec.categoria ?? {}), score, scoreMotivo: (scoreCat as Record<string, unknown>)?.scoreMotivo ?? null };
+    try {
+      const saved = await dbUpsert(id, { categoria: mergedCategoria });
+      db[id] = saved;
+      it.categoria = mergedCategoria;
+    } catch {
+      /* sem score desta vez; tenta de novo na próxima análise */
+    }
+  }
+}
+
+/**
+ * Consulta rasa (sem IA) do db.json pra um lote de ids — usada pelo content
+ * script assim que a página do OLX abre, pra já pintar borda+score nos cards
+ * que já foram analisados antes, sem esperar o clique em "Analisar página".
+ * Nunca lança: se o proxy estiver fora do ar, devolve lista vazia (o content
+ * script simplesmente não marca nada e tenta de novo na próxima checagem).
+ */
+async function checkKnown(ids: string[]): Promise<Array<{ id: string; status: "done" | "pending"; score: number | null }>> {
+  if (ids.length === 0) return [];
+  const db = await dbAll();
+  return ids.map((id) => {
+    const rec = db[id];
+    const deepAnalyzed = Boolean(rec && !(rec as Record<string, unknown>).shallow);
+    return {
+      id,
+      status: deepAnalyzed ? "done" : "pending",
+      score: deepAnalyzed ? scoreOf((rec as Record<string, unknown>).categoria) : null,
+    };
+  });
+}
+
+interface ShowIndicatorsResult {
+  count: number;
+  done: number;
+  pending: number;
+}
+
+/**
+ * Ação do botão "Exibir indicadores": força a marcação (borda verde/amarela +
+ * score) na aba do OLX aberta AGORA, sem esperar a injeção automática do
+ * content script — útil quando a extensão foi recarregada (ou a aba já
+ * estava aberta antes de instalar/atualizar) e o `content_scripts` do
+ * manifest não rodou nela. Não chama IA: só lê o db.json (via `checkKnown`).
+ */
+async function showIndicators(): Promise<ShowIndicatorsResult> {
+  const tab = await getActiveOlxTab();
+  await injectContent(tab.id);
+
+  const extracted = (await chrome.tabs.sendMessage(tab.id, { action: "extractSections" })) as
+    | { ok: boolean; count: number; cards: Card[] }
+    | undefined;
+  const cards = extracted?.cards ?? [];
+  const ids = cards
+    .map((c) => (typeof c.id === "string" ? c.id : null))
+    .filter((id): id is string => Boolean(id));
+
+  const marks = await checkKnown(ids);
+  await chrome.tabs.sendMessage(tab.id, { action: "markCards", marks }).catch(() => {
+    /* content script ainda não respondeu — tenta de novo no próximo clique */
+  });
+
+  return {
+    count: marks.length,
+    done: marks.filter((m) => m.status === "done").length,
+    pending: marks.filter((m) => m.status === "pending").length,
+  };
+}
+
+/** Ação do botão "Ocultar indicadores": limpa borda/score da aba do OLX aberta agora. */
+async function hideIndicators(): Promise<void> {
+  const tab = await getActiveOlxTab();
+  await chrome.tabs.sendMessage(tab.id, { action: "hideIndicators" }).catch(() => {
+    /* sem content script na aba — nada pra ocultar */
+  });
+}
+
 function detailToSection(id: string, data: Record<string, unknown> | null): Record<string, unknown> {
   const props = Array.isArray(data?.properties) ? (data!.properties as Array<Record<string, unknown>>) : [];
   return {
@@ -450,6 +575,9 @@ async function analyze(): Promise<AnalyzeResult> {
   const items = merged.filter((it) => isCarro(it.categoria));
   const nonCar = merged.length - items.length;
 
+  await backfillScores(items, db);
+  await markCardsOnPage(tab.id, items);
+
   return {
     count: items.length,
     items,
@@ -458,6 +586,26 @@ async function analyze(): Promise<AnalyzeResult> {
     nonCar,
     aiError: error ?? (categorias ? undefined : "IA não retornou JSON válido (veja 'raw')."),
   };
+}
+
+/**
+ * Manda o content script pintar, DIRETO na página do OLX, a borda de cada
+ * card visível: verde (já analisado a fundo, com o score) ou amarela (ainda
+ * aguarda o "Analisar selecionados"). Best-effort — se a aba já mudou de
+ * página, simplesmente não encontra os cards e não faz nada.
+ */
+async function markCardsOnPage(tabId: number, items: Item[]): Promise<void> {
+  const marks = items
+    .filter((it): it is Item & { id: string } => typeof it.id === "string")
+    .map((it) => ({
+      id: it.id,
+      status: it.deepAnalyzed ? "done" : "pending",
+      score: scoreOf(it.categoria),
+    }));
+  if (marks.length === 0) return;
+  await chrome.tabs.sendMessage(tabId, { action: "markCards", marks }).catch(() => {
+    /* aba sem o content script (navegou pra outro lugar) — ignora */
+  });
 }
 
 async function autoScroll(): Promise<AnalyzeResult> {
@@ -783,13 +931,24 @@ async function analyzeSelected(targets: Target[], force = false): Promise<Select
  * ------------------------------------------------------------------ */
 
 interface InMessage {
-  action: "analyze" | "autoScroll" | "analyzeSelected" | "crawlListing" | "getDb" | "clearDb";
+  action:
+    | "analyze"
+    | "autoScroll"
+    | "analyzeSelected"
+    | "crawlListing"
+    | "getDb"
+    | "clearDb"
+    | "checkKnown"
+    | "showIndicators"
+    | "hideIndicators";
   targets?: Target[];
   force?: boolean;
   maxPages?: number;
   scrollEach?: boolean;
   skipKnown?: boolean;
   saveToDb?: boolean;
+  /** só para "checkKnown": ids dos cards visíveis na página. */
+  ids?: string[];
 }
 
 chrome.runtime.onMessage.addListener((message: InMessage, _sender, sendResponse) => {
@@ -811,6 +970,13 @@ chrome.runtime.onMessage.addListener((message: InMessage, _sender, sendResponse)
             saveToDb: message.saveToDb ?? true,
           }),
         };
+      case "checkKnown":
+        return { ok: true, marks: await checkKnown(message.ids ?? []) };
+      case "showIndicators":
+        return { ok: true, result: await showIndicators() };
+      case "hideIndicators":
+        await hideIndicators();
+        return { ok: true };
       case "getDb":
         return { ok: true, db: await dbAll() };
       case "clearDb":

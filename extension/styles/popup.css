@@ -120,6 +120,64 @@ body.as-tab #app {
   color: var(--muted);
 }
 
+/* ---- Abas ---- */
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.tab-btn {
+  flex: 1;
+  appearance: none;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tab-btn:hover {
+  background: var(--bg);
+}
+
+.tab-btn[aria-selected="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.card-hint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+.dot-done {
+  background: #16a34a;
+}
+
+.dot-pending {
+  background: #eab308;
+}
+
 /* ---- Cartões ---- */
 .card {
   background: var(--card);
@@ -365,6 +423,28 @@ button {
 .item.sel {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Mesmo código de cores usado na borda pintada nos cards do OLX (ver content.ts). */
+.item.done {
+  border-left: 4px solid #16a34a;
+}
+
+.item.pending {
+  border-left: 4px solid #eab308;
+}
+
+.item .badge.score {
+  background: #16a34a;
+  color: #fff;
+}
+
+.item .badge.score[data-tier="mid"] {
+  background: #d97706;
+}
+
+.item .badge.score[data-tier="low"] {
+  background: #dc2626;
 }
 
 .item .pick {

@@ -254,6 +254,67 @@ OLX_SCRAPPER/
 
 ### 2026-09-14
 
+- **"Exibir indicadores" virou um toggle: ativado mostra "Ocultar indicadores".** Clicar de
+  novo remove a borda/score pintados na página do OLX e **pausa** o auto-mark (senão a
+  marcação reapareceria sozinha ~1s depois, já que o `MutationObserver` do content script
+  continua rodando). `content.ts` ganhou a flag `indicatorsHidden` (module-level): setada em
+  `hideIndicators()` — que limpa `data-olxw-status` e remove os badges de todo
+  `section.olx-adcard` — e checada no início de `autoMarkVisibleCards()`; volta a `false`
+  sempre que `markCards()` roda de novo (auto-mark, "Analisar página" ou "Exibir
+  indicadores"), então a próxima marcação (automática ou manual) já reativa sozinha. Nova
+  rota `hideIndicators` no `background.ts`/roteador, e `popup.ts` troca o rótulo do botão
+  (`setIndicatorsButtonLabel()`) — "Analisar página" também sincroniza pra "Ocultar
+  indicadores" já que ele pinta a página como efeito colateral.
+- **Botão "Exibir indicadores"** na aba "Analisar página" do popup. Cobre o caso em que a
+  extensão foi recarregada (ou a aba do OLX já estava aberta antes de instalar/atualizar) e o
+  `content_scripts` declarativo do manifest não rodou nela — o auto-mark só dispara em
+  NAVEGAÇÕES novas depois de carregado. O botão força: injeta o content script na aba atual
+  (`chrome.scripting.executeScript`, funciona mesmo sem o `content_scripts` ter rodado),
+  extrai os cards e chama `checkKnown()` — mesma rota do auto-mark, só lê o `db.json`, **sem
+  IA**. Nova função `showIndicators()` em `background.ts`, roteada pela action
+  `"showIndicators"`; status final no popup resume quantos ficaram verde/amarelo.
+- **Indicadores aparecem sozinhos ao abrir a página do OLX** (antes só apareciam depois de
+  clicar em "Analisar página"). `manifest.json` ganhou um `content_scripts` declarativo
+  (`matches: https://*.olx.com.br/*carros-vans-e-utilitarios*`, `document_idle`) — o
+  `content.js` agora roda automaticamente em toda página de carros, sem precisar de
+  `chrome.scripting.executeScript` do background primeiro. Ao carregar, `content.ts` chama
+  `autoMarkVisibleCards()`: extrai os cards visíveis, manda os ids ainda sem marcação pro
+  background (`action: "checkKnown"`, nova rota — só lê o `db.json` local, **sem IA, sem
+  custo**) e pinta a borda verde/amarela + score de volta com `markCards()`. Um
+  `MutationObserver` no `document.body` reagenda essa checagem (throttle de ~1s, não debounce
+  puro, pra não ficar esperando a página parar de mutar pra sempre) — cobre scroll infinito e
+  troca de filtro carregando cards novos. `background.ts` ganhou `checkKnown(ids)`, que nunca
+  lança (proxy fora do ar → lista vazia, tenta nas próximas mutações). O clique em "Analisar
+  página" continua sendo o único jeito de rodar a categorização por IA de fato (isso teria
+  custo); a auto-marcação só reflete o que já está salvo no DB.
+- **Popup em 2 abas ("Varrer páginas" / "Analisar página") + borda e score direto nos
+  cards do OLX.** `extension/public/popup.html` ganhou um seletor de abas (`.tabs`); a
+  varredura de paginação foi pra `#panelCrawl` e o botão "Analisar página" (antes "Executar
+  análise") + Auto-scroll foram pra `#panelAnalyze` — a lista de resultados/toolbar/DB
+  continuam compartilhados abaixo, então tanto "Varrer" quanto "Analisar" alimentam a mesma
+  lista. `popup.ts` faz a troca (`showTab()`) e agora também pinta cada item da lista com
+  `border-left` verde (`.item.done`) ou amarelo (`.item.pending`) e mostra um badge
+  "Score N" (verde/laranja/vermelho por faixa) quando o item já foi analisado a fundo e tem
+  `categoria.score`.
+  **A mesma marcação agora aparece direto na página do OLX**, não só no popup — pedido do
+  item 5 do `prompt.md` ("Na UI do OLX add um componente com o score"). `content.ts` tagueia
+  cada `section.olx-adcard` com `data-olxw-id` na extração e ganhou a ação `markCards`, que
+  aplica `outline` verde/amarelo + um badge de score (canto superior direito) direto no card
+  real do OLX — `background.ts` chama isso ao fim de `analyze()` (a ação por trás do botão
+  "Analisar página"), então qualquer carro na tela — novo ou **já analisado antes** — fica
+  marcado assim que a tela é analisada, sem precisar re-selecionar nada.
+  **Score de condição do carro (0-100):** o prompt da IA (`proxy/server.mjs`) ganhou os
+  campos `score` e `scoreMotivo` no JSON pedido, com instruções de quando estimar e quando
+  responder `null` (sem inventar nota sem sinal nenhum no anúncio). `analyzeSelected()`
+  grava o score que vier junto da categoria, como sempre fazia. Pra carros que já estavam no
+  `db.json` **antes** dessa feature (sem `score` salvo), `analyze()` agora chama
+  `backfillScores()`: pega a `description`/`properties` já salvas no registro (sem navegar
+  de novo até o anúncio) e pede só o score pra IA, gravando de volta no registro — é assim
+  que "carros já analisados" ganham o selo mesmo sem re-analisar a fundo.
+  **Limitação conhecida:** a marcação na página do OLX é aplicada nos elementos DOM reais no
+  momento do "Analisar página"; se o React do OLX re-renderizar aquele trecho da listagem
+  (troca de filtro, nova página carregada por scroll infinito antes de re-analisar, etc.), a
+  marcação pode sumir até a próxima análise — não há `MutationObserver` reaplicando sozinho.
 - **Segundo provedor de IA: OpenAI, alternável com o DeepSeek.** O proxy agora guarda a
   config de **cada provedor separadamente** (`providers.deepseek` / `providers.openai`,
   prefixos de env `DEEPSEEK_*` / `OPENAI_*`) e um `AI_PROVIDER` diz qual está **ativo** — é o

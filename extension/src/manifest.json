@@ -6,6 +6,13 @@
   "permissions": ["activeTab", "scripting"],
   "host_permissions": ["https://*.olx.com.br/*", "http://localhost:8787/*"],
   "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.olx.com.br/*carros-vans-e-utilitarios*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_title": "OLX Workspace"
   },

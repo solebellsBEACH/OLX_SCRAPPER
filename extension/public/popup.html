@@ -19,18 +19,16 @@
         </div>
       </header>
 
-      <section class="card">
-        <div class="actions">
-          <button id="analyzeBtn" class="btn btn-primary">
-            <span class="btn-ico">📊</span> Executar análise
-          </button>
-          <button id="scrollBtn" class="btn">
-            <span class="btn-ico">⬇️</span> Auto-scroll
-          </button>
-        </div>
-      </section>
+      <nav class="tabs" role="tablist">
+        <button id="tabCrawlBtn" class="tab-btn" role="tab" aria-selected="false" data-tab="crawl">
+          📚 Varrer páginas
+        </button>
+        <button id="tabAnalyzeBtn" class="tab-btn" role="tab" aria-selected="true" data-tab="analyze">
+          🔎 Analisar página
+        </button>
+      </nav>
 
-      <section class="card">
+      <section id="panelCrawl" class="card" role="tabpanel" hidden>
         <div class="card-title">Varredura de páginas</div>
         <div id="crawlBar">
           <button id="crawlBtn" class="btn btn-primary">📚 Varrer páginas</button>
@@ -54,6 +52,29 @@
             <span>Salvar no DB</span>
           </label>
         </div>
+      </section>
+
+      <section id="panelAnalyze" class="card" role="tabpanel">
+        <div class="card-title">Analisar página atual</div>
+        <div class="actions">
+          <button id="analyzeBtn" class="btn btn-primary">
+            <span class="btn-ico">📊</span> Analisar página
+          </button>
+          <button id="scrollBtn" class="btn">
+            <span class="btn-ico">⬇️</span> Auto-scroll
+          </button>
+        </div>
+        <div class="actions">
+          <button id="showIndicatorsBtn" class="btn">
+            <span class="btn-ico">🟢</span> Exibir indicadores
+          </button>
+        </div>
+        <p class="card-hint">
+          Pinta os cards da própria página do OLX: <span class="dot dot-done"></span> verde + score
+          = já analisado a fundo · <span class="dot dot-pending"></span> amarelo = ainda aguarda.
+          "Exibir indicadores" só confere o que já está salvo no DB (sem IA) — útil se a
+          extensão foi recarregada com a aba já aberta e a marcação automática não pegou.
+        </p>
       </section>
 
       <div id="status" role="status"></div>
