@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useDb } from "@/lib/useDb";
 import { toRows } from "@/lib/rows";
 import { formatBRL, formatDate, formatKm } from "@/lib/format";
+import { imgFallback, proxiedImg } from "@/lib/img";
 import type { AdCategoria } from "@/types";
 import { PageHeader } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -109,10 +110,11 @@ export function Detail() {
           <div className="aspect-[4/3] overflow-hidden border border-border bg-surface">
             {images[active] ? (
               <img
-                src={images[active]}
+                src={proxiedImg(images[active])}
                 alt={detail.title ?? ""}
                 className="h-full w-full object-cover"
                 loading="lazy"
+                onError={(e) => imgFallback(e, images[active])}
               />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-subtle">
@@ -130,7 +132,13 @@ export function Detail() {
                     i === active ? "border-accent" : "border-border"
                   }`}
                 >
-                  <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <img
+                    src={proxiedImg(src)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    onError={(e) => imgFallback(e, src)}
+                  />
                 </button>
               ))}
             </div>

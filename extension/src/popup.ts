@@ -49,6 +49,8 @@ interface AnalyzeResult {
   nonCar?: number;
   /** só no "Varrer páginas": quantas páginas foram lidas. */
   pages?: number;
+  /** total de páginas que a paginação do OLX oferece (limite da varredura). */
+  lastPage?: number | null;
   newCount?: number;
   skipped?: number;
   duplicates?: number;
@@ -377,6 +379,7 @@ crawlBtn.addEventListener("click", () => {
       renderPage();
       const pgs = result.pages ?? 0;
       const extra = [
+        result.lastPage ? `paginação: ${result.lastPage} página(s)` : "",
         result.savedToDb ? `${result.savedToDb} salvos no DB` : "",
         result.saveError ? `NÃO salvo no DB: ${result.saveError}` : "",
         result.nonCar ? `${result.nonCar} não-carro(s) ignorado(s)` : "",

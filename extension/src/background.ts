@@ -474,8 +474,13 @@ interface CrawlResult extends AnalyzeResult {
   savedToDb: number;
   /** motivo de não ter gravado (quando `saveToDb` estava ligado e nada foi salvo). */
   saveError?: string;
+  /** total de páginas que a paginação do OLX oferece (null se não deu pra ler). */
+  lastPage?: number | null;
   perPage: Array<{ page: number; novos: number; noDb: number; repetidos: number; total: number }>;
 }
+
+/** Teto rígido de páginas por varredura, independente do que o usuário pedir. */
+const CRAWL_MAX_PAGES = 10;
 
 async function crawlListing({
   maxPages,
@@ -491,8 +496,29 @@ async function crawlListing({
   if (!baseUrl) throw new Error("Aba do OLX sem URL. Abra uma página de listagem e tente de novo.");
 
   const startPage = pageOf(baseUrl);
-  const pages = Math.max(1, Math.min(maxPages || 1, 50));
   const originalUrl = baseUrl;
+
+  // Quantas páginas a paginação do OLX realmente oferece? Limita a varredura a
+  // esse total (a partir da página atual) e nunca passa de CRAWL_MAX_PAGES (10).
+  let lastPage: number | null = null;
+  try {
+    await injectContent(tabId);
+    const pg = (await chrome.tabs.sendMessage(tabId, { action: "extractPagination" })) as
+      | { ok: boolean; lastPage: number | null }
+      | undefined;
+    lastPage = pg?.lastPage ?? null;
+  } catch {
+    /* sem paginação legível — segue só com o pedido do usuário */
+  }
+
+  const requested = Math.max(1, Math.min(maxPages || 1, 50));
+  const available = lastPage && lastPage >= startPage ? lastPage - startPage + 1 : requested;
+  const pages = Math.min(requested, available, CRAWL_MAX_PAGES);
+  progress(
+    `Paginação: ${lastPage ?? "?"} página(s) no total — varrendo ${pages} ` +
+      `(a partir da ${startPage}).`,
+    { state: "running" },
+  );
 
   // db.json lido UMA vez: serve pra pular os que já foram analisados.
   const db = await dbAll();
@@ -585,6 +611,7 @@ async function crawlListing({
       skipped,
       duplicates,
       savedToDb: 0,
+      lastPage,
       perPage,
     };
   }
@@ -632,6 +659,7 @@ async function crawlListing({
     savedToDb,
     saveError,
     nonCar,
+    lastPage,
     perPage,
     aiError: error ?? (categorias ? undefined : "IA não retornou JSON válido."),
   } as CrawlResult;

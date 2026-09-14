@@ -4,6 +4,7 @@ import { Check, ExternalLink, Minus } from "lucide-react";
 import { useDb } from "@/lib/useDb";
 import { toRows } from "@/lib/rows";
 import { formatBRL, formatKm, formatPricePerKm } from "@/lib/format";
+import { imgFallback, proxiedImg } from "@/lib/img";
 import { PageHeader } from "@/components/Layout";
 import { Empty, ErrorBox, Loading } from "@/components/States";
 import { cn } from "@/lib/cn";
@@ -65,7 +66,13 @@ export function Compare() {
                 <td key={r.id} className="min-w-[200px] p-3 align-top">
                   <div className="aspect-[4/3] overflow-hidden border border-border">
                     {r.thumb ? (
-                      <img src={r.thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      <img
+                        src={proxiedImg(r.thumb)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        onError={(e) => imgFallback(e, r.thumb)}
+                      />
                     ) : null}
                   </div>
                   <Link

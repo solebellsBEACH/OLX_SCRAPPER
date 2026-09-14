@@ -74,6 +74,9 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
     - `POST /db` — `{ id, record }` | `{ records:[...] }` | `{ db:{...} }`; faz **merge por id**,
       grava `db.json` (escrita atômica via `.tmp` + rename), devolve `{ ok, db }`.
     - `DELETE /db` — zera `db.json`.
+    - `GET  /img?u=<url>` — baixa a imagem (`https://*.olx.com.br`) no servidor e
+      devolve os bytes. O painel usa isso porque `img.olx.com.br` costuma ser
+      barrado no navegador (adblock / proteção anti-rastreio / DNS).
   - `.env` — `DEEPSEEK_API_KEY`, `DEEPSEEK_API_URL`, `DEEPSEEK_MODEL`, `PROXY_PORT`.
     **Não versionado** (`.gitignore`). `.env.example` é o modelo.
 - **`db.json`** (raiz) — o "banco". Mapa `{ [idDoAnuncio]: registro }`. Cada registro tem
@@ -123,7 +126,7 @@ Carregar `extension/build/` em `chrome://extensions` como acima.
 
 App **Vite + React + TypeScript** que roda ao lado do proxy e é o **painel de análise** do
 garimpo (a extensão continua sendo só o coletor). Lê tudo pelo proxy (`GET /db`,
-`POST /analyze`, `DELETE /db`).
+`POST /analyze`, `DELETE /db`, `GET /img?u=` para as fotos).
 
 ```bash
 cd web
@@ -148,7 +151,9 @@ configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`
 3. **📊 Executar Análise** → lê só a página atual e mostra a lista (log no console da janela).
    Ou **📚 Varrer páginas** (campo "até N" + "rolar cada página" + "pular os que já estão no
    DB" + "salvar no DB") → percorre a paginação do OLX (`?o=2`, `?o=3`, …) a partir da página
-   atual, extrai as `section` de cada uma, **ignora anúncios repetidos** (mesmo id em outra
+   atual. O nº efetivo de páginas é `min("até N", páginas que a paginação do OLX mostra, 10)`
+   — nunca varre mais que 10 nem além da última página real. Extrai as `section` de cada uma,
+   **ignora anúncios repetidos** (mesmo id em outra
    página) e, se marcado, os que **já estão no `db.json`**, categoriza no DeepSeek em lotes,
    **grava os novos no `db.json`** (registro raso, sem visitar a página) e devolve a lista
    acumulada. Para sozinho quando a página não traz nada novo; ao final volta a aba para onde
@@ -247,6 +252,23 @@ OLX_SCRAPPER/
 
 ### 2026-09-10
 
+- **Imagens do anúncio não renderizavam no painel.** As URLs `https://img.olx.com.br/...`
+  são válidas, mas o navegador frequentemente não as carrega (adblock, proteção
+  anti-rastreio, filtro de DNS). Nova rota no proxy — `GET /img?u=<url>` — baixa a imagem
+  no servidor (aceita só `https://*.olx.com.br`) e devolve os bytes com CORS liberado. No
+  `web/`, `lib/img.ts` (`proxiedImg()` + `imgFallback()`) reescreve as `src` das imagens
+  para passar pelo `localhost`; usado na galeria do `Detail` e nos thumbs do `Compare`.
+  `onError` tenta a URL original uma vez e depois esconde a `<img>`.
+  **Requer reiniciar o proxy** (`cd proxy && npm start`) para a rota existir.
+
+- **UI da janela redesenhada.** `popup.html` + `popup.css` reescritos: layout em cartões,
+  paleta com variáveis CSS (+ modo escuro via `prefers-color-scheme`), botões com hierarquia
+  (primário roxo × secundário), cabeçalho com marca, opções da varredura empilhadas e
+  legíveis, `#status` só aparece quando há texto (banner com borda de destaque). Fix: a
+  toolbar de seleção e a paginação agora **ficam escondidas até rodar uma análise**
+  (`[hidden] { display: none !important }`) — antes apareciam vazias no primeiro load.
+  Nenhum `id` mudou; `popup.ts` não foi tocado.
+
 - **Extensão restrita a CARROS.** Pedido: "que a extensão se limite à análise somente de
   carros". O prompt do proxy (`buildPrompt`) agora pede um campo `tipo` por anúncio
   (`"carro"`, `"moto"`, `"caminhao"`, `"onibus"`, `"van"`, `"nautica"`, `"outro"`). No
@@ -258,6 +280,12 @@ OLX_SCRAPPER/
   contenha `carros-vans-e-utilitarios` (regex `OLX_CARROS_RE` + `isCarrosOlxUrl()`). Fora
   dessa categoria, todas as ações (`analyze`, `autoScroll`, `crawlListing`, `analyzeSelected`)
   falham com "Abra uma página de carros do OLX (URL com 'carros-vans-e-utilitarios')".
+- **"Varrer páginas" respeita a paginação real do OLX.** Nova ação de content
+  `extractPagination`: lê o widget de paginação (`[class*="Pagination"][class*="wrapper"]`,
+  com fallback por `a[href*='o=']`) e devolve o maior `?o=N` — inclusive o do link "Última
+  página". No `crawlListing`, o nº de páginas varridas passa a ser
+  `min(pedido_do_usuário, páginas_disponíveis_a_partir_da_atual, 10)` — teto rígido
+  `CRAWL_MAX_PAGES = 10`. A janela mostra "paginação: N página(s)" no resumo.
 
 - **"Selecionar todas" + não refazer o que já foi feito.** Na toolbar da janela: botão
   **"selecionar todas (N)"** marca todos os itens da varredura (todas as páginas da lista de

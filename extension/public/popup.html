@@ -3,37 +3,75 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>OLX Workspace</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <div id="app" style="width: 300px; padding: 16px; font-family: Arial;">
-      <h2>OLX Workspace</h2>
+    <div id="app">
+      <header class="app-head">
+        <div class="brand">
+          <span class="brand-mark">🚗</span>
+          <div class="brand-txt">
+            <h1>OLX Workspace</h1>
+            <p class="sub">Só carros · categorização com IA</p>
+          </div>
+        </div>
+      </header>
 
-      <div class="actions">
-        <button id="analyzeBtn">📊 Executar Análise</button>
-        <button id="scrollBtn">⬇️ Auto-scroll</button>
-      </div>
+      <section class="card">
+        <div class="actions">
+          <button id="analyzeBtn" class="btn btn-primary">
+            <span class="btn-ico">📊</span> Executar análise
+          </button>
+          <button id="scrollBtn" class="btn">
+            <span class="btn-ico">⬇️</span> Auto-scroll
+          </button>
+        </div>
+      </section>
 
-      <div id="crawlBar">
-        <button id="crawlBtn">📚 Varrer páginas</button>
-        <label>até
-          <input type="number" id="maxPages" min="1" max="50" value="5" />
-        </label>
-        <label><input type="checkbox" id="scrollEach" checked /> rolar cada página</label>
-        <label><input type="checkbox" id="skipKnown" checked /> pular os que já estão no DB</label>
-        <label><input type="checkbox" id="saveToDb" checked /> salvar no DB</label>
-      </div>
+      <section class="card">
+        <div class="card-title">Varredura de páginas</div>
+        <div id="crawlBar">
+          <button id="crawlBtn" class="btn btn-primary">📚 Varrer páginas</button>
+          <label class="field">
+            <span>até</span>
+            <input type="number" id="maxPages" min="1" max="10" value="5" />
+            <span class="field-hint">pág. (máx. 10)</span>
+          </label>
+        </div>
+        <div class="opts">
+          <label class="opt">
+            <input type="checkbox" id="scrollEach" checked />
+            <span>Rolar cada página</span>
+          </label>
+          <label class="opt">
+            <input type="checkbox" id="skipKnown" checked />
+            <span>Pular os que já estão no DB</span>
+          </label>
+          <label class="opt">
+            <input type="checkbox" id="saveToDb" checked />
+            <span>Salvar no DB</span>
+          </label>
+        </div>
+      </section>
 
-      <div id="status"></div>
+      <div id="status" role="status"></div>
 
       <div id="toolbar" hidden>
-        <label><input type="checkbox" id="selAllBtn" /> selecionar página</label>
-        <button id="selectAllBtn">selecionar todas (0)</button>
-        <button id="clearSelBtn" class="ghost" disabled>limpar seleção</button>
-        <button id="analyzeSelBtn" disabled>🔎 Analisar selecionados (0)</button>
-        <button id="viewDbBtn">🗃️ Ver DB</button>
-        <button id="clearDbBtn" class="ghost">limpar DB</button>
+        <label class="opt">
+          <input type="checkbox" id="selAllBtn" />
+          <span>Selecionar página</span>
+        </label>
+        <div class="toolbar-btns">
+          <button id="selectAllBtn" class="btn btn-sm">selecionar todas (0)</button>
+          <button id="clearSelBtn" class="btn btn-sm ghost" disabled>limpar seleção</button>
+          <button id="analyzeSelBtn" class="btn btn-sm btn-primary" disabled>
+            🔎 Analisar selecionados (0)
+          </button>
+          <button id="viewDbBtn" class="btn btn-sm">🗃️ Ver DB</button>
+          <button id="clearDbBtn" class="btn btn-sm ghost">limpar DB</button>
+        </div>
       </div>
 
       <pre id="dbDump" hidden></pre>
@@ -41,9 +79,9 @@
       <div id="list"></div>
 
       <div id="pager" hidden>
-        <button id="prevBtn">‹ Anterior</button>
+        <button id="prevBtn" class="btn btn-sm">‹ Anterior</button>
         <span id="pageInfo"></span>
-        <button id="nextBtn">Próxima ›</button>
+        <button id="nextBtn" class="btn btn-sm">Próxima ›</button>
       </div>
     </div>
     <script src="popup.js"></script>

@@ -21,7 +21,7 @@ declare global {
   }
 }
 
-type ContentAction = "extractSections" | "extractAdPage" | "autoScroll";
+type ContentAction = "extractSections" | "extractAdPage" | "autoScroll" | "extractPagination";
 
 interface ContentMessage {
   action: ContentAction;
@@ -69,6 +69,12 @@ interface ExtractResult {
   ok: true;
   count: number;
   cards: AdCard[];
+}
+
+interface PaginationResult {
+  ok: true;
+  /** maior número de página oferecido pela paginação do OLX (null se não achar). */
+  lastPage: number | null;
 }
 
 interface AdPageResult {
@@ -131,6 +137,32 @@ function parseSection(section: Element, index: number): AdCard {
 function extractSections(): AdCard[] {
   const sections = Array.from(document.querySelectorAll("section.olx-adcard"));
   return sections.map(parseSection);
+}
+
+/**
+ * Lê o widget de paginação do OLX e devolve o MAIOR número de página oferecido.
+ * O nome da classe tem um hash gerado no build (`Pagination-...__wrapper`), então
+ * casamos por prefixo. Fallback: qualquer <a> cujo href tenha `?o=N` na mesma
+ * listagem. O link "Última página" costuma trazer o total real (ex.: `?o=23`).
+ */
+function extractPagination(): number | null {
+  const wrapper =
+    document.querySelector('[class*="Pagination"][class*="wrapper"]') ??
+    document.querySelector('[class*="pagination" i]');
+  const links = Array.from(
+    (wrapper ?? document).querySelectorAll<HTMLAnchorElement>("a[href*='o=']"),
+  );
+  let last = 0;
+  for (const a of links) {
+    let o = 0;
+    try {
+      o = Number(new URL(a.href).searchParams.get("o") ?? "0");
+    } catch {
+      o = 0;
+    }
+    if (Number.isFinite(o) && o > last) last = o;
+  }
+  return last > 0 ? last : null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -295,11 +327,18 @@ if (!window.__olxWorkspaceInjected) {
     (
       message: ContentMessage,
       _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: ExtractResult | AdPageResult | OkResult) => void,
+      sendResponse: (
+        response: ExtractResult | AdPageResult | OkResult | PaginationResult,
+      ) => void,
     ): boolean => {
       if (message.action === "extractSections") {
         const cards = extractSections();
         sendResponse({ ok: true, count: cards.length, cards });
+        return false;
+      }
+
+      if (message.action === "extractPagination") {
+        sendResponse({ ok: true, lastPage: extractPagination() });
         return false;
       }
 

@@ -12,6 +12,9 @@
  *   POST   /db       -> { records:[{id,...}] } | { id, record } | { db:{...} }
  *                       faz merge por id, grava em <raiz>/db.json, devolve { ok, db }
  *   DELETE /db       -> zera <raiz>/db.json     -> { ok, db:{} }
+ *   GET    /img?u=   -> baixa a imagem do OLX no servidor e devolve os bytes.
+ *                       Contorna adblock / bloqueio de terceiros no navegador
+ *                       (o painel só precisa falar com localhost).
  *
  * Requisitos: Node >= 18.17 (usa fetch global). Sem dependências externas.
  */
@@ -225,6 +228,52 @@ async function handleDbWrite(req, res) {
   return sendJSON(res, 200, { ok: true, count: Object.keys(db).length, db });
 }
 
+/**
+ * GET /img?u=<url> — baixa a imagem no servidor e devolve os bytes.
+ * Só aceita host `*.olx.com.br` em https. Serve pra quando o navegador não
+ * carrega `img.olx.com.br` direto (adblock, proteção anti-rastreio, DNS, etc.):
+ * o painel passa a pedir a imagem só pro localhost.
+ */
+async function handleImg(req, res) {
+  const raw = new URL(req.url, "http://localhost").searchParams.get("u");
+  if (!raw) return sendJSON(res, 400, { ok: false, error: "faltou o parâmetro ?u=" });
+
+  let target;
+  try {
+    target = new URL(raw);
+  } catch {
+    return sendJSON(res, 400, { ok: false, error: "URL inválida em ?u=" });
+  }
+  if (target.protocol !== "https:" || !/(^|\.)olx\.com\.br$/i.test(target.hostname)) {
+    return sendJSON(res, 400, { ok: false, error: "só imagens https de *.olx.com.br" });
+  }
+
+  try {
+    const upstream = await fetch(target, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+        Referer: "https://www.olx.com.br/",
+        Accept: "image/avif,image/webp,image/*,*/*;q=0.8",
+      },
+    });
+    if (!upstream.ok || !upstream.body) {
+      res.writeHead(upstream.status || 502, CORS);
+      return res.end();
+    }
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.writeHead(200, {
+      "Content-Type": upstream.headers.get("content-type") ?? "image/jpeg",
+      "Content-Length": String(buf.length),
+      "Cache-Control": "public, max-age=604800",
+      ...CORS,
+    });
+    res.end(buf);
+  } catch (err) {
+    res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8", ...CORS });
+    res.end(`Falha ao baixar imagem: ${err.message}`);
+  }
+}
+
 const server = createServer((req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, CORS);
@@ -253,6 +302,9 @@ const server = createServer((req, res) => {
   if (req.method === "POST" && req.url === "/db") {
     return void handleDbWrite(req, res);
   }
+  if (req.method === "GET" && req.url.startsWith("/img")) {
+    return void handleImg(req, res);
+  }
   if (req.method === "DELETE" && req.url === "/db") {
     try {
       writeDb({});
@@ -261,13 +313,17 @@ const server = createServer((req, res) => {
       return sendJSON(res, 500, { ok: false, error: `Falha ao limpar db.json: ${err.message}` });
     }
   }
-  sendJSON(res, 404, { ok: false, error: "Rotas: GET /health, POST /analyze, GET|POST|DELETE /db" });
+  sendJSON(res, 404, {
+    ok: false,
+    error: "Rotas: GET /health, POST /analyze, GET|POST|DELETE /db, GET /img?u=",
+  });
 });
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`[OLX Workspace] proxy em http://localhost:${PORT}`);
   console.log(`  POST /analyze          -> DeepSeek (${MODEL})`);
   console.log(`  GET|POST|DELETE /db    -> ${DB_PATH}`);
+  console.log(`  GET  /img?u=<url>      -> imagem do OLX (proxy)`);
   console.log(`  GET  /health`);
   if (!API_KEY) console.warn("  AVISO: defina DEEPSEEK_API_KEY em proxy/.env");
 });
