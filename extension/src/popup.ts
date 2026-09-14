@@ -147,16 +147,23 @@ const rowState = new Map<string, "running" | "done" | "error">();
 
 function setStatus(text: string): void {
   statusEl.textContent = text;
+  statusEl.classList.toggle("has-error", /^[❌⚠]/u.test(text));
 }
 
 async function send(action: string, extra: Record<string, unknown> = {}): Promise<DispatchResponse> {
-  const response = (await chrome.runtime.sendMessage({ action, ...extra })) as
-    | DispatchResponse
-    | undefined;
-  return response ?? { ok: false, error: "Sem resposta do service worker." };
+  try {
+    const response = (await chrome.runtime.sendMessage({ action, ...extra })) as
+      | DispatchResponse
+      | undefined;
+    return response ?? { ok: false, error: "A extensão não respondeu. Recarregue a extensão e tente novamente." };
+  } catch {
+    return { ok: false, error: "A comunicação com a extensão foi interrompida. Recarregue a extensão e tente novamente." };
+  }
 }
 
 function lockButtons(lock: boolean): void {
+  statusEl.classList.toggle("is-loading", lock);
+  analyzeBtn.textContent = lock ? "Processando..." : "Analisar página";
   analyzeBtn.disabled = lock;
   scrollBtn.disabled = lock;
   crawlBtn.disabled = lock;

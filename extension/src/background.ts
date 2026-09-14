@@ -252,7 +252,7 @@ function progress(text: string, extra: Record<string, unknown> = {}): void {
 /** Garante que o proxy local está no ar; senão, erro claro. */
 async function ensureProxy(): Promise<void> {
   try {
-    const res = await fetch(`${PROXY_BASE}/health`, { cache: "no-store" });
+    const res = await fetch(`${PROXY_BASE}/health`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
     if (res.ok) return;
   } catch {
     /* cai no throw abaixo */
@@ -268,14 +268,20 @@ async function ensureProxy(): Promise<void> {
 
 async function categorize(
   sections: unknown[],
+  label?: string,
 ): Promise<{ categorias: unknown[] | null; raw: string | null; error?: string }> {
   try {
+    progress(`${label ?? `Analisando ${sections.length} anúncio(s)`} · aguardando IA (alguns minutos por lote)...`);
     const response = await fetch(PROXY_URL, {
+      signal: AbortSignal.timeout(310_000),
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sections }),
     });
-    const data = (await response.json().catch(() => ({}))) as {
+    const data = (await response.json().catch((err) => {
+      if (err.name === "TimeoutError" || err.name === "AbortError") throw err;
+      return {};
+    })) as {
       ok?: boolean;
       categorias?: unknown[] | null;
       raw?: string | null;
@@ -289,6 +295,9 @@ async function categorize(
       raw: data.raw ?? null,
     };
   } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      return { categorias: null, raw: null, error: "A análise excedeu o tempo de espera. Tente novamente com menos anúncios por vez." };
+    }
     const msg = err instanceof Error ? err.message : String(err);
     return { categorias: null, raw: null, error: `Proxy inacessível (${msg}). Rode: cd proxy && npm start` };
   }
@@ -301,23 +310,33 @@ async function categorize(
  */
 async function categorizeInChunks(
   cards: Card[],
-  size: number,
+  size = 5,
 ): Promise<{ categorias: unknown[] | null; error?: string }> {
+  if (cards.length === 0) return { categorias: [] };
+  let failed = 0;
   const out: unknown[] = [];
   let anyOk = false;
   let lastError: string | undefined;
   for (let i = 0; i < cards.length; i += size) {
     const chunk = cards.slice(i, i + size);
-    progress(`DeepSeek: ${i + 1}–${Math.min(i + size, cards.length)} de ${cards.length}...`);
-    const { categorias, error } = await categorize(chunk);
+    const label = `Lote ${Math.floor(i / size) + 1}/${Math.ceil(cards.length / size)} · anúncios ${i + 1}–${i + chunk.length} de ${cards.length}`;
+    const { categorias, error } = await categorize(chunk, label);
     if (Array.isArray(categorias)) {
-      out.push(...categorias);
+      out.push(...categorias.map((category, position) => {
+        if (!category || typeof category !== "object") return category;
+        const cat = category as Categoria;
+        return { ...cat, index: typeof cat.index === "number" ? cat.index : chunk[position]?.index };
+      }));
       anyOk = true;
-    } else if (error) {
-      lastError = error;
+    } else {
+      failed += chunk.length;
+      lastError = error ?? "A IA não retornou categorias válidas.";
     }
   }
-  return { categorias: anyOk ? out : null, error: anyOk ? undefined : lastError };
+  return {
+    categorias: anyOk ? out : null,
+    error: failed ? `${failed} de ${cards.length} anúncio(s) ficaram sem análise. Os resultados dos demais lotes foram mantidos. ${lastError}` : undefined,
+  };
 }
 
 function mergeItems(cards: Card[], categorias: unknown[] | null, db: Record<string, DbRecord>): Item[] {
@@ -424,7 +443,8 @@ async function analyze(): Promise<AnalyzeResult> {
   const cards = extracted?.cards ?? [];
   const db = await dbAll();
 
-  const { categorias, raw, error } = await categorize(cards);
+  const { categorias, error } = await categorizeInChunks(cards);
+  const raw = null;
 
   const merged = mergeItems(cards, categorias, db);
   const items = merged.filter((it) => isCarro(it.categoria));
@@ -617,7 +637,7 @@ async function crawlListing({
   }
 
   progress(`Categorizando ${allCards.length} anúncio(s) novo(s) no DeepSeek...`, { state: "running" });
-  const { categorias, error } = await categorizeInChunks(allCards, 20);
+  const { categorias, error } = await categorizeInChunks(allCards);
   const merged = mergeItems(allCards, categorias, db);
   // a extensão só trabalha com carros: descarta moto, caminhão, náutica, etc.
   const items = merged.filter((it) => isCarro(it.categoria));

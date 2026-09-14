@@ -13,11 +13,13 @@ que mudou e por quê.
 ## O que é
 
 **OLX Workspace** é uma **extensão do Chrome (Manifest V3, TypeScript)** para garimpar anúncios
-de **carros** no OLX com apoio de IA (**DeepSeek**). Ela:
+de **carros** no OLX com apoio de IA (**DeepSeek** ou **OpenAI**, alternáveis pela aba "IA" do
+painel). Ela:
 
 1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`) — ou **varre
    várias páginas** da paginação de uma vez ("Varrer páginas").
-2. Manda esses dados para a **DeepSeek** (via um **proxy local** que guarda a chave) e recebe
+2. Manda esses dados para o **provedor de IA ativo** (via um **proxy local** que guarda as
+   chaves) e recebe
    cada anúncio **categorizado**: tipo, marca, modelo, versão, ano, motor, combustível, câmbio,
    portas, carroceria. **Só carros de passeio ficam** — moto, caminhão, ônibus, van, náutica,
    etc. são descartados pelo campo `tipo` (não vão para a lista nem para o `db.json`).
@@ -249,6 +251,41 @@ OLX_SCRAPPER/
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-09-14
+
+- **Segundo provedor de IA: OpenAI, alternável com o DeepSeek.** O proxy agora guarda a
+  config de **cada provedor separadamente** (`providers.deepseek` / `providers.openai`,
+  prefixos de env `DEEPSEEK_*` / `OPENAI_*`) e um `AI_PROVIDER` diz qual está **ativo** — é o
+  que `/analyze` (e portanto a extensão) usa de fato. `GET /config` devolve os dois blocos +
+  o ativo; `POST /config` aceita `{ provider }` pra trocar o ativo e/ou `{ deepseek: {...} }` /
+  `{ openai: {...} }` pra editar um provedor específico sem trocar o ativo — tudo persistido em
+  `proxy/.env`. Na aba **IA** (`web/src/pages/Ai.tsx`) isso virou duas abas (DeepSeek/OpenAI):
+  clicar numa torna esse provedor o ativo (mostra um selo "ativo"); o formulário abaixo edita a
+  config de qualquer uma das duas independentemente; "Testar IA" sempre testa o **ativo**.
+  DeepSeek e OpenAI usam o mesmo formato de request (`chat/completions` estilo OpenAI), então
+  o `handleAnalyze()` não precisou de lógica por provedor além de trocar `apiUrl`/`model`/
+  `apiKey`/`timeoutMs`.
+- **Corrigido `DEEPSEEK_MODEL`: era `DeepSeek-V4.1-Flash`, que a API rejeitava** (`"The
+  supported API model names are deepseek-flash, deepseek-v4-pro..."`). Trocado para
+  `deepseek-flash` (default em `server.mjs` e `.env.example`, e no `.env` local). **Atenção:**
+  ao testar `deepseek-flash` via `/analyze` a chamada upstream ficou lenta (bem acima de 60s)
+  e em uma tentativa devolveu HTTP 200 com corpo vazio — parece questão da própria API/conta
+  DeepSeek, não do proxy (a OpenAI, testada com o mesmo código, respondeu normal e rápido).
+  Vale confirmar na sua conta DeepSeek se `deepseek-flash` está liberado nesse plano.
+- **Nova aba "IA" no painel (`web/`)**, para configurar e testar a IA sem mexer em arquivo.
+  Novo par de rotas no proxy: `GET /config` devolve a config atual (apiUrl, model, timeoutMs,
+  hasKey, `keyPreview` com a chave mascarada) e `POST /config` atualiza `apiUrl`/`model`/
+  `timeoutMs`/`apiKey` em runtime **e** grava em `proxy/.env` (`persistEnv()` reescreve só as
+  linhas `DEEPSEEK_*`, preservando o resto do arquivo; campos vazios/omitidos mantêm o valor
+  atual, então dá pra trocar o modelo sem reenviar a chave). Não precisa reiniciar o proxy — as
+  variáveis viraram `let` em vez de `const`. A página `web/src/pages/Ai.tsx` traz o formulário
+  de config + o botão "Testar IA" (que antes vivia em DB/Config — removido de lá pra não
+  duplicar). Novo item no menu lateral (`Layout.tsx`) e rota `/ia` (`main.tsx`).
+- **Modelo padrão trocado de `deepseek-chat` para `DeepSeek-V4.1-Flash`.** Atualizado o valor
+  default em `proxy/server.mjs` (fallback quando `DEEPSEEK_MODEL` não está definido) e em
+  `proxy/.env.example`; `proxy/.env` local também ajustado. Não requer mudança de código além
+  da variável — o proxy só repassa `MODEL` no corpo da chamada à API.
 
 ### 2026-09-10
 

@@ -10,6 +10,15 @@
     @apply bg-bg text-fg font-sans text-base;
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
+    caret-color: transparent;
+  }
+  /* Exibe o cursor de inserção apenas em campos realmente editáveis. */
+  input,
+  textarea,
+  [contenteditable=""],
+  [contenteditable="true"],
+  [contenteditable="plaintext-only"] {
+    caret-color: auto;
   }
   /* Números sempre tabulares. */
   .tnum {

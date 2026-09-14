@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, RotateCcw, Trash2, Zap } from "lucide-react";
+import { Download, RotateCcw, Trash2 } from "lucide-react";
 import { api, ApiError, getProxyUrl, setProxyUrl } from "@/lib/api";
 import { useDb } from "@/lib/useDb";
 import { exportDbJson, exportRowsCsv, exportRowsJson } from "@/lib/exporters";
@@ -11,33 +11,8 @@ import { ErrorBox, Loading } from "@/components/States";
 export function Config() {
   const { db, rows, status, error, refetch } = useDb();
   const [url, setUrl] = useState(getProxyUrl());
-  const [test, setTest] = useState<string | null>(null);
-  const [testing, setTesting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
-
-  async function runTest() {
-    setTesting(true);
-    setTest(null);
-    try {
-      const h = await api.health();
-      if (!h.hasKey) {
-        setTest("Proxy online, mas DEEPSEEK_API_KEY não está em proxy/.env.");
-        return;
-      }
-      const res = await api.analyze([
-        { index: 0, title: "Honda Civic EXL 2.0 2018", details: ["Câmbio: Automático"] },
-      ]);
-      setTest(
-        res.categorias
-          ? `OK — ${h.model}. Retorno: ${JSON.stringify(res.categorias[0])}`
-          : `Sem categorias. raw: ${res.raw ?? "—"}`,
-      );
-    } catch (err) {
-      setTest(err instanceof ApiError ? err.message : String(err));
-    } finally {
-      setTesting(false);
-    }
-  }
 
   async function clear() {
     if (!confirm("Zerar o db.json inteiro? Não dá pra desfazer.")) return;
@@ -46,7 +21,7 @@ export function Config() {
       await api.clearDb();
       refetch();
     } catch (err) {
-      setTest(err instanceof ApiError ? err.message : String(err));
+      setMsg(err instanceof ApiError ? err.message : String(err));
     } finally {
       setClearing(false);
     }
@@ -91,17 +66,11 @@ export function Config() {
         <p className="mt-2 text-xs text-subtle">Guardado em localStorage (olx.proxyUrl).</p>
       </Card>
 
-      <Card title="DeepSeek">
-        <Button size="md" onClick={runTest} disabled={testing}>
-          <Zap className={`h-3 w-3 ${testing ? "animate-pulse" : ""}`} />
-          Testar DeepSeek
-        </Button>
-        {test && (
-          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap border border-border bg-bg p-3 text-xs">
-            {test}
-          </pre>
-        )}
-      </Card>
+      {msg && (
+        <Card title="Aviso">
+          <p className="text-xs text-danger">{msg}</p>
+        </Card>
+      )}
 
       <Card title="Exportar">
         <div className="flex flex-wrap gap-2">

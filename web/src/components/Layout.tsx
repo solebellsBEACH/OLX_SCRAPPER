@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, Table2, GitCompareArrows, Database } from "lucide-react";
+import { LayoutDashboard, Table2, GitCompareArrows, Database, BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ProxyStatus } from "./ProxyStatus";
 
@@ -7,6 +7,7 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/listagem", label: "Listagem", icon: Table2, end: false },
   { to: "/comparador", label: "Comparador", icon: GitCompareArrows, end: false },
+  { to: "/ia", label: "IA", icon: BrainCircuit, end: false },
   { to: "/db", label: "DB / Config", icon: Database, end: false },
 ];
 

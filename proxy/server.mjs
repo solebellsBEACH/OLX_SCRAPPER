@@ -2,11 +2,18 @@
  * Proxy local do OLX Workspace.
  *
  * A extensão manda os dados já extraídos das <section class="olx-adcard"> para
- * cá; este servidor injeta a chave DeepSeek (lida de proxy/.env) e encaminha
- * para a API. A chave nunca sai da sua máquina nem entra no bundle da extensão.
+ * cá; este servidor injeta a chave da IA (lida de proxy/.env) e encaminha para
+ * a API. A chave nunca sai da sua máquina nem entra no bundle da extensão.
+ *
+ * Suporta mais de um provedor de IA (DeepSeek, OpenAI — ambos falam a mesma
+ * API "chat/completions" no formato OpenAI). Um fica "ativo" por vez; o painel
+ * troca entre eles em runtime, sem reiniciar o proxy.
  *
  * Rotas:
- *   GET    /health   -> status + se a chave está configurada
+ *   GET    /health   -> status + se a chave do provedor ativo está configurada
+ *   GET    /config   -> provedor ativo + configuração de cada um (chave mascarada)
+ *   POST   /config   -> troca o provedor ativo e/ou atualiza apiUrl/model/timeoutMs/apiKey
+ *                       de um provedor específico; grava em proxy/.env
  *   POST   /analyze  -> { sections: AdCard[] }  ->  { ok, categorias, raw, usage }
  *   GET    /db       -> { ok, db }              (conteúdo de <raiz>/db.json)
  *   POST   /db       -> { records:[{id,...}] } | { id, record } | { db:{...} }
@@ -72,12 +79,96 @@ function loadEnv(path) {
   }
 }
 
-loadEnv(join(HERE, ".env"));
+const ENV_PATH = join(HERE, ".env");
+loadEnv(ENV_PATH);
 
 const PORT = Number(process.env.PROXY_PORT ?? 8787);
-const API_KEY = process.env.DEEPSEEK_API_KEY ?? "";
-const API_URL = process.env.DEEPSEEK_API_URL ?? "https://api.deepseek.com/chat/completions";
-const MODEL = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
+
+function clampTimeout(ms) {
+  return Number.isFinite(ms) ? Math.min(300_000, Math.max(10_000, ms)) : 180_000;
+}
+
+/** Um provedor por prefixo de env var. Ambos falam o formato "chat/completions" da OpenAI. */
+const PROVIDER_DEFS = {
+  deepseek: { label: "DeepSeek", envPrefix: "DEEPSEEK", defaultApiUrl: "https://api.deepseek.com/chat/completions", defaultModel: "deepseek-flash" },
+  openai: { label: "OpenAI", envPrefix: "OPENAI", defaultApiUrl: "https://api.openai.com/v1/chat/completions", defaultModel: "gpt-4o-mini" },
+};
+const PROVIDER_IDS = Object.keys(PROVIDER_DEFS);
+
+/** Config de cada provedor: mutável em runtime via POST /config (persistida em proxy/.env). */
+const providers = Object.fromEntries(
+  PROVIDER_IDS.map((id) => {
+    const def = PROVIDER_DEFS[id];
+    return [id, {
+      apiUrl: process.env[`${def.envPrefix}_API_URL`] ?? def.defaultApiUrl,
+      apiKey: process.env[`${def.envPrefix}_API_KEY`] ?? "",
+      model: process.env[`${def.envPrefix}_MODEL`] ?? def.defaultModel,
+      timeoutMs: clampTimeout(Number(process.env[`${def.envPrefix}_TIMEOUT_MS`] ?? 180_000)),
+    }];
+  }),
+);
+
+/** Provedor ativo (usado por /analyze e /health). Trocável via POST /config { provider }. */
+let ACTIVE_PROVIDER = PROVIDER_IDS.includes(process.env.AI_PROVIDER?.trim().toLowerCase())
+  ? process.env.AI_PROVIDER.trim().toLowerCase()
+  : "deepseek";
+
+function activeConfig() {
+  return providers[ACTIVE_PROVIDER];
+}
+
+/** Mostra só os últimos 4 caracteres da chave, pra confirmar qual está ativa sem expor tudo. */
+function maskKey(key) {
+  if (!key) return null;
+  return key.length <= 4 ? "•".repeat(key.length) : `${"•".repeat(Math.min(8, key.length - 4))}${key.slice(-4)}`;
+}
+
+function configSnapshot() {
+  return {
+    provider: ACTIVE_PROVIDER,
+    providers: Object.fromEntries(
+      PROVIDER_IDS.map((id) => {
+        const c = providers[id];
+        return [id, {
+          label: PROVIDER_DEFS[id].label,
+          apiUrl: c.apiUrl,
+          model: c.model,
+          timeoutMs: c.timeoutMs,
+          hasKey: Boolean(c.apiKey),
+          keyPreview: maskKey(c.apiKey),
+        }];
+      }),
+    ),
+  };
+}
+
+/**
+ * Atualiza variáveis em proxy/.env, preservando as demais linhas (inclusive
+ * comentários). Reescreve a chave se já existir, senão acrescenta.
+ */
+function persistEnv(updates) {
+  let raw = "";
+  try {
+    raw = readFileSync(ENV_PATH, "utf8");
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+  const lines = raw.length ? raw.split(/\r?\n/) : [];
+  const pending = new Map(Object.entries(updates));
+  const next = lines.map((line) => {
+    const match = line.match(/^\s*([\w.-]+)\s*=/);
+    if (match && pending.has(match[1])) {
+      const key = match[1];
+      const value = pending.get(key);
+      pending.delete(key);
+      return `${key}=${value}`;
+    }
+    return line;
+  });
+  while (next.length && next[next.length - 1] === "") next.pop();
+  for (const [key, value] of pending) next.push(`${key}=${value}`);
+  writeFileSync(ENV_PATH, `${next.join("\n")}\n`, "utf8");
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -120,7 +211,12 @@ function buildPrompt(sections) {
     "Se houver o campo 'description', use-o também como fonte.",
     "",
     "ANÚNCIOS:",
-    JSON.stringify(sections, null, 2),
+    JSON.stringify(sections.map((section, index) => ({
+      index: section.index ?? index,
+      title: section.title,
+      description: section.description,
+      details: section.details,
+    }))),
   ].join("\n");
 }
 
@@ -138,8 +234,11 @@ function extractCategorias(content) {
 }
 
 async function handleAnalyze(req, res) {
-  if (!API_KEY) {
-    return sendJSON(res, 500, { ok: false, error: "DEEPSEEK_API_KEY ausente em proxy/.env" });
+  const providerId = ACTIVE_PROVIDER;
+  const def = PROVIDER_DEFS[providerId];
+  const cfg = activeConfig();
+  if (!cfg.apiKey) {
+    return sendJSON(res, 500, { ok: false, error: `${def.envPrefix}_API_KEY ausente em proxy/.env (provedor ativo: ${def.label})` });
   }
 
   let sections;
@@ -152,18 +251,22 @@ async function handleAnalyze(req, res) {
   }
 
   if (sections.length === 0) {
-    return sendJSON(res, 200, { ok: true, model: MODEL, count: 0, categorias: [] });
+    return sendJSON(res, 200, { ok: true, provider: providerId, model: cfg.model, count: 0, categorias: [] });
   }
 
+  const started = Date.now();
+  let phase = "awaiting_headers";
+  console.info(`[analyze] início: ${sections.length} anúncio(s), provedor=${providerId}, modelo=${cfg.model}, limite=${cfg.timeoutMs}ms`);
   try {
-    const upstream = await fetch(API_URL, {
+    const upstream = await fetch(cfg.apiUrl, {
+      signal: AbortSignal.timeout(cfg.timeoutMs),
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
+        Authorization: `Bearer ${cfg.apiKey}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: cfg.model,
         temperature: 0,
         stream: false,
         response_format: { type: "json_object" },
@@ -177,26 +280,107 @@ async function handleAnalyze(req, res) {
       }),
     });
 
-    const data = await upstream.json().catch(() => ({}));
+    phase = "reading_response";
+    const data = await upstream.json().catch((err) => {
+      if (err.name === "TimeoutError" || err.name === "AbortError") throw err;
+      return {};
+    });
     if (!upstream.ok) {
-      const detail = data?.error?.message ?? `DeepSeek HTTP ${upstream.status}`;
+      const apiMsg = data?.error?.message;
+      const detail = ({
+        401: `Chave da ${def.label} inválida. Confira ${def.envPrefix}_API_KEY em proxy/.env e tente de novo.`,
+        402: `Saldo insuficiente na ${def.label}. Recarregue a conta para continuar.`,
+        403: `Acesso à ${def.label} negado. Confira as permissões da sua chave.`,
+        429: `A ${def.label} recebeu muitas solicitações. Aguarde um pouco e tente novamente.`,
+      })[upstream.status] ?? apiMsg ?? `O serviço ${def.label} está indisponível. Tente novamente em instantes.`;
       return sendJSON(res, upstream.status, { ok: false, error: detail });
     }
 
     const content = data?.choices?.[0]?.message?.content ?? "";
     const { categorias, raw } = extractCategorias(content);
+    if (!categorias) {
+      return sendJSON(res, 502, { ok: false, error: "A IA retornou uma resposta inválida. Tente analisar menos anúncios por vez." });
+    }
 
     return sendJSON(res, 200, {
       ok: true,
-      model: MODEL,
+      provider: providerId,
+      model: cfg.model,
       count: sections.length,
       categorias,
       raw,
       usage: data?.usage ?? null,
     });
   } catch (err) {
-    return sendJSON(res, 502, { ok: false, error: `Falha ao chamar DeepSeek: ${err.message}` });
+    const timedOut = err.name === "TimeoutError" || err.name === "AbortError";
+    console.error(`[analyze] falha: fase=${phase}, duração=${Date.now() - started}ms, tipo=${err.name}, causa=${err.cause?.code ?? "nenhuma"}`);
+    return sendJSON(res, timedOut ? 504 : 502, {
+      ok: false,
+      code: timedOut ? "AI_TIMEOUT" : "AI_UNAVAILABLE",
+      phase,
+      elapsedMs: Date.now() - started,
+      error: timedOut
+        ? `A ${def.label} não concluiu a resposta em ${cfg.timeoutMs / 1000} segundos. Pode haver lentidão no serviço ou na conexão. Aguarde e tente novamente.`
+        : `Não foi possível conectar à ${def.label}. Verifique a conexão e tente novamente.`,
+    });
   }
+}
+
+/**
+ * POST /config — body: { provider?: "deepseek"|"openai", deepseek?: {...}, openai?: {...} }
+ * onde cada bloco de provedor aceita { apiUrl?, model?, timeoutMs?, apiKey? }.
+ * `provider` troca o provedor ativo. Campos omitidos ou vazios mantêm o valor
+ * atual (a chave nunca é apagada por engano só por deixar o campo em branco no
+ * front). Tudo é persistido em proxy/.env.
+ */
+async function handleConfigWrite(req, res) {
+  let payload;
+  try {
+    payload = JSON.parse(await readBody(req));
+  } catch (err) {
+    return sendJSON(res, 400, { ok: false, error: `JSON inválido: ${err.message}` });
+  }
+
+  const updates = {};
+
+  for (const id of PROVIDER_IDS) {
+    const patch = payload?.[id];
+    if (!patch || typeof patch !== "object") continue;
+    const def = PROVIDER_DEFS[id];
+    const cfg = providers[id];
+    if (typeof patch.apiUrl === "string" && patch.apiUrl.trim()) {
+      cfg.apiUrl = patch.apiUrl.trim();
+      updates[`${def.envPrefix}_API_URL`] = cfg.apiUrl;
+    }
+    if (typeof patch.model === "string" && patch.model.trim()) {
+      cfg.model = patch.model.trim();
+      updates[`${def.envPrefix}_MODEL`] = cfg.model;
+    }
+    if (patch.timeoutMs !== undefined && patch.timeoutMs !== null && patch.timeoutMs !== "") {
+      cfg.timeoutMs = clampTimeout(Number(patch.timeoutMs));
+      updates[`${def.envPrefix}_TIMEOUT_MS`] = String(cfg.timeoutMs);
+    }
+    if (typeof patch.apiKey === "string" && patch.apiKey.trim()) {
+      cfg.apiKey = patch.apiKey.trim();
+      updates[`${def.envPrefix}_API_KEY`] = cfg.apiKey;
+    }
+  }
+
+  if (typeof payload?.provider === "string") {
+    const id = payload.provider.trim().toLowerCase();
+    if (!PROVIDER_IDS.includes(id)) {
+      return sendJSON(res, 400, { ok: false, error: `provider inválido: ${payload.provider}` });
+    }
+    ACTIVE_PROVIDER = id;
+    updates.AI_PROVIDER = id;
+  }
+
+  try {
+    if (Object.keys(updates).length) persistEnv(updates);
+  } catch (err) {
+    return sendJSON(res, 500, { ok: false, error: `Falha ao gravar proxy/.env: ${err.message}` });
+  }
+  return sendJSON(res, 200, { ok: true, config: configSnapshot() });
 }
 
 async function handleDbWrite(req, res) {
@@ -281,13 +465,21 @@ const server = createServer((req, res) => {
     return;
   }
   if (req.method === "GET" && req.url === "/health") {
+    const cfg = activeConfig();
     return sendJSON(res, 200, {
       ok: true,
-      hasKey: Boolean(API_KEY),
-      model: MODEL,
+      hasKey: Boolean(cfg.apiKey),
+      model: cfg.model,
+      provider: ACTIVE_PROVIDER,
       port: PORT,
       dbPath: DB_PATH,
     });
+  }
+  if (req.method === "GET" && req.url === "/config") {
+    return sendJSON(res, 200, { ok: true, config: configSnapshot() });
+  }
+  if (req.method === "POST" && req.url === "/config") {
+    return void handleConfigWrite(req, res);
   }
   if (req.method === "POST" && req.url === "/analyze") {
     return void handleAnalyze(req, res);
@@ -315,15 +507,17 @@ const server = createServer((req, res) => {
   }
   sendJSON(res, 404, {
     ok: false,
-    error: "Rotas: GET /health, POST /analyze, GET|POST|DELETE /db, GET /img?u=",
+    error: "Rotas: GET /health, GET|POST /config, POST /analyze, GET|POST|DELETE /db, GET /img?u=",
   });
 });
 
 server.listen(PORT, "127.0.0.1", () => {
+  const cfg = activeConfig();
   console.log(`[OLX Workspace] proxy em http://localhost:${PORT}`);
-  console.log(`  POST /analyze          -> DeepSeek (${MODEL})`);
+  console.log(`  POST /analyze          -> ${PROVIDER_DEFS[ACTIVE_PROVIDER].label} (${cfg.model})`);
   console.log(`  GET|POST|DELETE /db    -> ${DB_PATH}`);
   console.log(`  GET  /img?u=<url>      -> imagem do OLX (proxy)`);
   console.log(`  GET  /health`);
-  if (!API_KEY) console.warn("  AVISO: defina DEEPSEEK_API_KEY em proxy/.env");
+  console.log(`  GET|POST /config       -> provedores: ${PROVIDER_IDS.join(", ")} (ativo: ${ACTIVE_PROVIDER})`);
+  if (!cfg.apiKey) console.warn(`  AVISO: defina ${PROVIDER_DEFS[ACTIVE_PROVIDER].envPrefix}_API_KEY em proxy/.env`);
 });

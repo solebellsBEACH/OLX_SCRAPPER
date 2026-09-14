@@ -8,6 +8,7 @@ import { Listing } from "./pages/Listing";
 import { Detail } from "./pages/Detail";
 import { Compare } from "./pages/Compare";
 import { Config } from "./pages/Config";
+import { Ai } from "./pages/Ai";
 
 const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ const router = createBrowserRouter([
       { path: "/listagem", element: <Listing /> },
       { path: "/anuncio/:id", element: <Detail /> },
       { path: "/comparador", element: <Compare /> },
+      { path: "/ia", element: <Ai /> },
       { path: "/db", element: <Config /> },
     ],
   },

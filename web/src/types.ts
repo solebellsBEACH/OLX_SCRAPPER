@@ -59,8 +59,27 @@ export interface HealthResponse {
   ok: boolean;
   hasKey: boolean;
   model: string;
+  provider?: AiProviderId;
   port: number;
   dbPath: string;
+}
+
+export type AiProviderId = "deepseek" | "openai";
+
+/** Config de um provedor de IA (proxy/.env), com a chave mascarada. */
+export interface AiProviderConfig {
+  label: string;
+  apiUrl: string;
+  model: string;
+  timeoutMs: number;
+  hasKey: boolean;
+  keyPreview: string | null;
+}
+
+/** Config atual da IA: provedor ativo + configuração de cada provedor suportado. */
+export interface AiConfig {
+  provider: AiProviderId;
+  providers: Record<AiProviderId, AiProviderConfig>;
 }
 
 /** Linha achatada usada pela tabela e pelos agregados do dashboard. */

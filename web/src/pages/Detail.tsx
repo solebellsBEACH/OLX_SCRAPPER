@@ -92,7 +92,7 @@ export function Detail() {
         </a>
         <Button size="sm" variant="outline" disabled={busy !== null} onClick={reanalyze}>
           <RefreshCw className={`h-3 w-3 ${busy === "analyze" ? "animate-spin" : ""}`} />
-          Reanalisar
+          {busy === "analyze" ? "Analisando..." : "Reanalisar"}
         </Button>
         <Button size="sm" variant="danger" disabled={busy !== null} onClick={remove}>
           <Trash2 className="h-3 w-3" />
@@ -100,6 +100,7 @@ export function Detail() {
         </Button>
       </PageHeader>
 
+      {busy === "analyze" && <p role="status" className="text-sm text-muted">Aguardando a IA. Isso pode levar alguns minutos.</p>}
       {msg && (
         <p className="border border-border bg-surface p-3 text-sm text-muted">{msg}</p>
       )}
