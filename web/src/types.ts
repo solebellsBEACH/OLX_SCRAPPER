@@ -41,6 +41,9 @@ export interface AdCategoria {
   /** 0-100: condição estimada do carro pela IA a partir do anúncio (ver README). */
   score?: number | null;
   scoreMotivo?: string | null;
+  /** true = km muito baixa pra idade do carro (possível odômetro adulterado). null = sem dado suficiente. */
+  kmSuspeito?: boolean | null;
+  kmSuspeitoMotivo?: string | null;
 }
 
 export interface DbRecord {

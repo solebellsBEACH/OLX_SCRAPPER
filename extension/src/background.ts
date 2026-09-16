@@ -70,6 +70,8 @@ interface AnalyzeResult {
   aiError?: string;
   /** anúncios descartados por NÃO serem carro (moto, caminhão, náutica, ...). */
   nonCar?: number;
+  /** anúncios novos gravados (rasos) no db.json, pra não perder ao fechar a extensão. */
+  savedToDb?: number;
 }
 
 /* ------------------------------------------------------------------ *
@@ -578,13 +580,69 @@ async function analyze(): Promise<AnalyzeResult> {
   await backfillScores(items, db);
   await markCardsOnPage(tab.id, items);
 
+  // Grava um rascunho raso de cada carro NOVO no db.json — sem isso, o que o
+  // "Analisar página" categoriza só existe na memória da janela da extensão e
+  // some ao fechá-la, sem chance de rodar o "Analisar selecionados" depois.
+  // Nunca sobrescreve quem já está no DB (raso ou completo).
+  let savedToDb = 0;
+  const newRecords = items
+    .filter((it) => typeof it.id === "string" && !(it.id in db))
+    .map(itemToRecord)
+    .filter((r): r is DbRecord => r !== null);
+  if (newRecords.length > 0) {
+    try {
+      savedToDb = await dbUpsertMany(newRecords);
+      for (const r of newRecords) db[r.id] = r;
+    } catch (err) {
+      progress(`⚠️ Não deu pra salvar rascunho no db.json: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   return {
     count: items.length,
     items,
     categorias,
     raw,
     nonCar,
+    savedToDb,
     aiError: error ?? (categorias ? undefined : "IA não retornou JSON válido (veja 'raw')."),
+  };
+}
+
+/**
+ * Ação do botão "Carregar pendentes": lê o db.json e devolve os registros
+ * RASOS (categorizados na listagem, mas que ainda não passaram pela página do
+ * anúncio) como itens prontos pra lista do popup — dá pra selecionar e rodar
+ * "Analisar selecionados" neles mesmo em uma sessão nova da extensão, sem
+ * precisar estar na página de listagem onde foram vistos originalmente (usa
+ * a `url` salva no registro pra navegar até o anúncio).
+ */
+async function loadPending(): Promise<AnalyzeResult> {
+  const db = await dbAll();
+  const items: Item[] = Object.values(db)
+    .filter((rec) => Boolean((rec as Record<string, unknown>).shallow))
+    .map((rec) => recordToItem(rec));
+  return { count: items.length, items, categorias: null, raw: null };
+}
+
+/** Converte um registro do db.json (raso ou completo) pro shape `Item` da lista do popup. */
+function recordToItem(rec: DbRecord): Item {
+  const detail = (rec as Record<string, unknown>).detail as Record<string, unknown> | undefined;
+  return {
+    id: rec.id,
+    title: (detail?.title as string | null) ?? null,
+    url: (rec.url as string | undefined) ?? (detail?.url as string | null) ?? null,
+    image: Array.isArray(detail?.images) ? ((detail!.images as unknown[])[0] as string | undefined) ?? null : null,
+    price: (detail?.price as string | null) ?? null,
+    oldPrice: (detail?.priceOld as string | null) ?? null,
+    km: typeof detail?.km === "number" ? (detail!.km as number) : null,
+    kmText: (detail?.kmText as string | null) ?? null,
+    color: (detail?.color as string | null) ?? null,
+    location: (detail?.location as string | null) ?? null,
+    date: (detail?.dateText as string | null) ?? (detail?.publishedAt as string | null) ?? null,
+    categoria: ((rec as Record<string, unknown>).categoria as Categoria | null) ?? null,
+    inDb: true,
+    deepAnalyzed: !(rec as Record<string, unknown>).shallow,
   };
 }
 
@@ -940,7 +998,8 @@ interface InMessage {
     | "clearDb"
     | "checkKnown"
     | "showIndicators"
-    | "hideIndicators";
+    | "hideIndicators"
+    | "loadPending";
   targets?: Target[];
   force?: boolean;
   maxPages?: number;
@@ -977,6 +1036,8 @@ chrome.runtime.onMessage.addListener((message: InMessage, _sender, sendResponse)
       case "hideIndicators":
         await hideIndicators();
         return { ok: true };
+      case "loadPending":
+        return { ok: true, result: await loadPending() };
       case "getDb":
         return { ok: true, db: await dbAll() };
       case "clearDb":

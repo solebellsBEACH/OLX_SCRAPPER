@@ -254,6 +254,62 @@ OLX_SCRAPPER/
 
 ### 2026-09-14
 
+- **Campo pra digitar a quantidade a selecionar**, na toolbar de seleção (ao lado de
+  "selecionar todas"). Depois de "Carregar pendentes do DB" trazer centenas de itens de uma
+  vez, "selecionar todas" seleciona tudo — sem opção de processar aos poucos. Novo input
+  numérico + botão "Selecionar quantidade": seleciona só os N primeiros pendentes (entre os
+  que ainda não foram analisados a fundo), pra rodar "Analisar selecionados" em lotes
+  menores em vez de mandar tudo de uma vez. `popup.ts` limita o `max` do input ao total de
+  pendentes atual.
+- **"Analisar página" não perde mais o que categorizou ao fechar a extensão.** Antes, o
+  resultado do "Analisar página" (categorização rasa da listagem — marca/modelo/ano/score)
+  só existia na memória da janela do popup; fechando a janela sem rodar "Analisar
+  selecionados" em cima, esse trabalho ia pro lixo. Agora `analyze()` em `background.ts`
+  grava um rascunho raso (`itemToRecord()`, mesma função que o "Varrer páginas" já usava) de
+  cada carro **novo** no `db.json` ao final da análise — nunca sobrescreve quem já está no DB
+  (raso ou completo). Status do botão passa a mostrar quantos foram salvos.
+  Novo botão **"📥 Carregar pendentes do DB"**: lê o `db.json` inteiro, filtra os registros
+  ainda `shallow` (rasos — passaram pela listagem mas não pela página do anúncio) de
+  **qualquer sessão anterior** e devolve pra lista do popup (`loadPending()` +
+  `recordToItem()` em `background.ts`, rota `"loadPending"`) — dá pra selecionar e rodar
+  "Analisar selecionados" neles na hora, mesmo numa janela nova da extensão, porque
+  `analyzeSelected()` já navega pela `url` salva no registro (não depende da página de
+  listagem onde foram vistos originalmente).
+- **Corrigido: aba do OLX travando com a extensão ativa.** O `MutationObserver` do auto-mark
+  (adicionado na feature "indicadores aparecem sozinhos ao abrir a página", acima) tinha dois
+  problemas que juntos causavam trava em listagens grandes:
+  1. A cada mutação do DOM ele rodava `extractSections()` **completo** — parseia título,
+     preço, km, cor, local, data e nº de fotos de TODO card na página (~8 querySelectorAll por
+     card) — só pra descobrir os ids ainda sem marcação. Depois de um "Varrer páginas"/scroll
+     longo (centenas de cards acumulados), isso repetia a cada ~1s, pra sempre.
+  2. Pior: inserir o próprio badge de score (`markCards()` faz `section.appendChild(badge)`)
+     É uma mutação do DOM — que dispara o MESMO observer de novo, criando um ciclo que nunca
+     silencia sozinho.
+  Corrigido com: `collectPendingIds()`, uma varredura BARATA que só lê o id de cada
+  `section.olx-adcard` (via o link, com fallback pro atributo já tagueado) sem parsear mais
+  nada — substitui o `extractSections()` completo dentro do loop do auto-mark (que continua
+  completo só quando de fato chamado via "Analisar página"/"Exibir indicadores", ações
+  pontuais do usuário, não em loop). E `isOwnMutation()`, que ignora lotes de mutação onde
+  todo nó adicionado/removido é o próprio `.olxw-score-badge`, quebrando o ciclo do item 2.
+  Intervalo do throttle subiu de 1s pra 1.5s como margem extra.
+- **Alerta de "km suspeita" (km muito baixa pra idade do carro) via IA.** O prompt em
+  `proxy/server.mjs` (`buildPrompt()`, usado por `/analyze` — listagem, deep analyze e o
+  backfill de score) ganhou os campos `kmSuspeito`/`kmSuspeitoMotivo`. A IA recebe o ano
+  atual real (`new Date().getFullYear()`, calculado no servidor — não deixo a IA "adivinhar"
+  o ano de hoje) e agora também o `km` numérico de cada anúncio como campo estruturado (antes
+  só ia embutido em texto solto dentro de `details`); ela calcula km/ano de uso e marca
+  `kmSuspeito: true` quando a média é muito baixa pra um carro de passeio comum
+  (bem abaixo de ~3.000 km/ano) — indício de odômetro voltado, sinistro rodado escondido ou
+  km real maior que o anunciado. Carros muito novos (0-1 ano) ou sem `km`/`ano` suficientes
+  ficam `null` (a IA foi instruída a não inventar). Km muito ALTA pra idade não entra aqui —
+  isso já pesa no `score` de condição existente; este campo é só pra km anormalmente BAIXA.
+  Testado com casos reais: 8.000km/10 anos → `kmSuspeito: true` com motivo "800 km/ano";
+  95.000km/10 anos → `null`.
+  Surfaced em 3 lugares: **popup da extensão** (badge vermelho "⚠️ km suspeita" em
+  `renderItem()`, tooltip com o motivo), **Listagem** do painel web (badge amarelo ao lado
+  do modelo/versão) e **Detalhe** do anúncio (banner de aviso acima da ficha da categoria).
+  Tipo `kmSuspeito`/`kmSuspeitoMotivo` adicionado em `AdCategoria` (web) e `Categoria`
+  (extensão).
 - **Comparador (`web/`) ganhou 2 botões com IA: "Comparar com IA" e "Exibir métricas".**
   Duas rotas novas no proxy — `POST /compare` e `POST /metrics` — reaproveitando a mesma
   infra multi-provedor do `/analyze`; extraí o fetch/timeout/tratamento de erro de

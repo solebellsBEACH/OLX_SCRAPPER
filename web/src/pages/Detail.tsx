@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useDb } from "@/lib/useDb";
 import { toRows } from "@/lib/rows";
@@ -160,18 +160,28 @@ export function Detail() {
 
           <Section title="Categoria (IA)">
             {cat ? (
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
-                <Item k="Marca" v={cat.marca} />
-                <Item k="Modelo" v={cat.modelo} />
-                <Item k="Versão" v={cat.versao} />
-                <Item k="Ano" v={cat.ano} />
-                <Item k="Motor" v={cat.motor} />
-                <Item k="Combustível" v={cat.combustivel} />
-                <Item k="Câmbio" v={cat.cambio} />
-                <Item k="Portas" v={cat.portas} />
-                <Item k="Carroceria" v={cat.carroceria} />
-                <Item k="Km" v={formatKm(row.km)} />
-              </dl>
+              <>
+                {cat.kmSuspeito && (
+                  <div className="mb-3 flex items-start gap-2 border border-[#f2dcae] bg-[#fdf7ec] p-3 text-sm text-warn">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      <strong>Km suspeita.</strong> {cat.kmSuspeitoMotivo ?? "Muito baixa pra idade do carro — possível odômetro adulterado."}
+                    </span>
+                  </div>
+                )}
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+                  <Item k="Marca" v={cat.marca} />
+                  <Item k="Modelo" v={cat.modelo} />
+                  <Item k="Versão" v={cat.versao} />
+                  <Item k="Ano" v={cat.ano} />
+                  <Item k="Motor" v={cat.motor} />
+                  <Item k="Combustível" v={cat.combustivel} />
+                  <Item k="Câmbio" v={cat.cambio} />
+                  <Item k="Portas" v={cat.portas} />
+                  <Item k="Carroceria" v={cat.carroceria} />
+                  <Item k="Km" v={formatKm(row.km)} />
+                </dl>
+              </>
             ) : (
               <p className="text-sm text-muted">Sem categoria da IA. Use "Reanalisar".</p>
             )}

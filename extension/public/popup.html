@@ -75,6 +75,17 @@
           "Exibir indicadores" só confere o que já está salvo no DB (sem IA) — útil se a
           extensão foi recarregada com a aba já aberta e a marcação automática não pegou.
         </p>
+        <div class="actions">
+          <button id="loadPendingBtn" class="btn">
+            <span class="btn-ico">📥</span> Carregar pendentes do DB
+          </button>
+        </div>
+        <p class="card-hint">
+          "Analisar página" já grava um rascunho raso de cada carro novo no <code>db.json</code>
+          (não perde mais ao fechar a extensão). Este botão traz de volta pra lista os que
+          ainda não passaram por "Analisar selecionados" — de qualquer sessão anterior —,
+          pra você selecionar e mandar analisar a fundo agora.
+        </p>
       </section>
 
       <div id="status" role="status"></div>
@@ -86,6 +97,12 @@
         </label>
         <div class="toolbar-btns">
           <button id="selectAllBtn" class="btn btn-sm">selecionar todas (0)</button>
+          <label class="field">
+            <span>ou</span>
+            <input type="number" id="selectCountInput" min="1" value="10" />
+            <span class="field-hint">pendentes</span>
+          </label>
+          <button id="selectCountBtn" class="btn btn-sm">Selecionar quantidade</button>
           <button id="clearSelBtn" class="btn btn-sm ghost" disabled>limpar seleção</button>
           <button id="analyzeSelBtn" class="btn btn-sm btn-primary" disabled>
             🔎 Analisar selecionados (0)

@@ -190,6 +190,7 @@ async function readBody(req) {
 }
 
 function buildPrompt(sections) {
+  const anoAtual = new Date().getFullYear();
   return [
     "Categorize CADA anúncio de veículo do OLX abaixo a partir do título e dos detalhes.",
     "A extensão analisa SOMENTE CARROS de passeio: classifique o campo 'tipo' para que",
@@ -208,7 +209,9 @@ function buildPrompt(sections) {
     '  "portas": number|null,          // ex.: 5',
     '  "carroceria": string|null,      // "SUV", "Hatch", "Sedã", "Picape", etc.',
     '  "score": number|null,           // 0 a 100: condição estimada do carro (100 = ótimo estado, 0 = sucata/muitos problemas)',
-    '  "scoreMotivo": string|null      // frase curta (máx. ~15 palavras) justificando o score',
+    '  "scoreMotivo": string|null,     // frase curta (máx. ~15 palavras) justificando o score',
+    '  "kmSuspeito": boolean|null,     // true = km muito baixa pra idade do carro (possível odômetro adulterado)',
+    '  "kmSuspeitoMotivo": string|null // frase curta explicando (ex.: "9.000km em 6 anos = 1.500km/ano")',
     "} ] }",
     "Use null quando o dado não aparecer. Não invente. Mantenha 'index' igual ao do input.",
     "Em 'tipo' use \"carro\" para automóveis de passeio (hatch, sedã, SUV, picape leve).",
@@ -218,6 +221,14 @@ function buildPrompt(sections) {
     "'sucata', 'motor fundido', 'necessita reparos', km muito alta pra idade, muitas trocas de",
     "dono, ou falta total de informação sobre o estado descem/limitam o score. Sem qualquer sinal",
     "sobre o estado do carro, responda score: null (não invente uma nota sem base).",
+    `Para 'kmSuspeito': use o ano atual (${anoAtual}) e o campo 'km' de cada anúncio (quando vier)`,
+    "pra estimar km/ano rodado = km ÷ (ano_atual - ano_do_carro + 1, mínimo 1). Marque",
+    "kmSuspeito: true quando essa média for MUITO baixa pra um carro de passeio de uso normal",
+    "(bem abaixo de ~3.000 km/ano) — pode indicar odômetro voltado/adulterado, sinistro rodado",
+    "escondido, ou km real maior que o anunciado. NÃO marque suspeito carros muito novos (0-1",
+    "ano de uso, onde pouca km ainda é normal) nem quando faltar 'km' ou 'ano' pra calcular —",
+    "nesses casos responda kmSuspeito: null. Km muito ALTA pra idade não é 'kmSuspeito' (isso",
+    "já é considerado no 'score' acima); este campo é só pra km anormalmente BAIXA.",
     "",
     "ANÚNCIOS:",
     JSON.stringify(sections.map((section, index) => ({
@@ -225,6 +236,7 @@ function buildPrompt(sections) {
       title: section.title,
       description: section.description,
       details: section.details,
+      km: section.km ?? null,
     }))),
   ].join("\n");
 }

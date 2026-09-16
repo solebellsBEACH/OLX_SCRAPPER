@@ -10,7 +10,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { GitCompareArrows, ExternalLink, TrendingDown } from "lucide-react";
+import { GitCompareArrows, ExternalLink, TrendingDown, AlertTriangle } from "lucide-react";
 import type { AdRow } from "@/types";
 import { useDb } from "@/lib/useDb";
 import { applyFilters, useFilters } from "@/lib/useFilters";
@@ -81,6 +81,15 @@ export function Listing() {
               <Badge tone="ok" title="Abaixo da média do mesmo modelo/ano">
                 <TrendingDown className="mr-1 h-3 w-3" />
                 oportunidade
+              </Badge>
+            )}
+            {row.original.record.categoria?.kmSuspeito && (
+              <Badge
+                tone="warn"
+                title={row.original.record.categoria?.kmSuspeitoMotivo ?? "Km muito baixa pra idade do carro"}
+              >
+                <AlertTriangle className="mr-1 h-3 w-3" />
+                km suspeita
               </Badge>
             )}
           </span>

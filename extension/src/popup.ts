@@ -23,6 +23,9 @@ interface Categoria {
   /** 0-100: condição estimada do carro pela IA (só em itens já analisados a fundo). */
   score?: number | null;
   scoreMotivo?: string | null;
+  /** true = km muito baixa pra idade do carro (possível odômetro adulterado). */
+  kmSuspeito?: boolean | null;
+  kmSuspeitoMotivo?: string | null;
 }
 
 interface Item {
@@ -126,6 +129,7 @@ const dbDumpEl = $<HTMLPreElement>("dbDump");
 const analyzeBtn = $<HTMLButtonElement>("analyzeBtn");
 const scrollBtn = $<HTMLButtonElement>("scrollBtn");
 const showIndicatorsBtn = $<HTMLButtonElement>("showIndicatorsBtn");
+const loadPendingBtn = $<HTMLButtonElement>("loadPendingBtn");
 const crawlBtn = $<HTMLButtonElement>("crawlBtn");
 const maxPagesEl = $<HTMLInputElement>("maxPages");
 const scrollEachEl = $<HTMLInputElement>("scrollEach");
@@ -135,6 +139,8 @@ const prevBtn = $<HTMLButtonElement>("prevBtn");
 const nextBtn = $<HTMLButtonElement>("nextBtn");
 const selAllBtn = $<HTMLInputElement>("selAllBtn");
 const selectAllBtn = $<HTMLButtonElement>("selectAllBtn");
+const selectCountInput = $<HTMLInputElement>("selectCountInput");
+const selectCountBtn = $<HTMLButtonElement>("selectCountBtn");
 const clearSelBtn = $<HTMLButtonElement>("clearSelBtn");
 const analyzeSelBtn = $<HTMLButtonElement>("analyzeSelBtn");
 const viewDbBtn = $<HTMLButtonElement>("viewDbBtn");
@@ -188,8 +194,11 @@ function lockButtons(lock: boolean): void {
   analyzeBtn.disabled = lock;
   scrollBtn.disabled = lock;
   showIndicatorsBtn.disabled = lock;
+  loadPendingBtn.disabled = lock;
   crawlBtn.disabled = lock;
   selectAllBtn.disabled = lock || items.length === 0;
+  selectCountBtn.disabled = lock || items.length === 0;
+  selectCountInput.disabled = lock;
   clearSelBtn.disabled = lock || selected.size === 0;
   analyzeSelBtn.disabled = lock || selected.size === 0;
 }
@@ -294,6 +303,12 @@ function renderItem(it: Item): HTMLDivElement {
     if (typeof score === "number") body.appendChild(scoreBadge(score));
   } else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB (raso)"));
 
+  if (it.categoria?.kmSuspeito) {
+    const alert = badge("err", "⚠️ km suspeita");
+    alert.title = it.categoria.kmSuspeitoMotivo ?? "Km muito baixa pra idade do carro — possível odômetro adulterado.";
+    body.appendChild(alert);
+  }
+
   if (it.url) {
     const link = document.createElement("a");
     link.href = it.url;
@@ -360,6 +375,8 @@ function syncSelectionUi(): void {
   const pend = pendingItems().length;
   selectAllBtn.textContent = `selecionar todas (${pend})`;
   selectAllBtn.disabled = analyzeBtn.disabled || pend === 0;
+  selectCountBtn.disabled = analyzeBtn.disabled || pend === 0;
+  selectCountInput.max = String(pend || 1);
   clearSelBtn.disabled = analyzeBtn.disabled || selected.size === 0;
 }
 
@@ -388,10 +405,11 @@ analyzeBtn.addEventListener("click", () => {
       indicatorsShown = true;
       setIndicatorsButtonLabel();
       const naoCarro = result.nonCar ? ` · ${result.nonCar} não-carro(s) ocultado(s)` : "";
+      const salvos = result.savedToDb ? ` · ${result.savedToDb} novo(s) salvo(s) no DB (rascunho)` : "";
       setStatus(
         result.aiError
           ? `⚠️ ${result.count} carro(s) listado(s)${naoCarro}. IA: ${result.aiError}`
-          : `✅ ${result.count} carro(s) categorizado(s)${naoCarro} (console F12 + lista abaixo)`,
+          : `✅ ${result.count} carro(s) categorizado(s)${naoCarro}${salvos} (console F12 + lista abaixo)`,
       );
     } finally {
       lockButtons(false);
@@ -514,6 +532,33 @@ showIndicatorsBtn.addEventListener("click", () => {
   void (indicatorsShown ? hideIndicatorsClick() : showIndicatorsClick());
 });
 
+loadPendingBtn.addEventListener("click", () => {
+  void (async () => {
+    lockButtons(true);
+    setStatus("⏳ Carregando pendentes do db.json...");
+    try {
+      const response = await send("loadPending");
+      if (!response.ok) {
+        setStatus(`❌ ${response.error ?? "Erro desconhecido."}`);
+        return;
+      }
+      const result = response.result ?? { count: 0, items: [] };
+      items = result.items;
+      page = 0;
+      selected.clear();
+      rowState.clear();
+      renderPage();
+      setStatus(
+        result.count === 0
+          ? "ℹ️ Nada pendente no DB — tudo que já foi listado passou por 'Analisar selecionados'."
+          : `✅ ${result.count} carro(s) pendente(s) carregado(s). Selecione e clique em "Analisar selecionados".`,
+      );
+    } finally {
+      lockButtons(false);
+    }
+  })();
+});
+
 selAllBtn.addEventListener("change", () => {
   for (const it of pageItems()) {
     if (!it.id) continue;
@@ -533,6 +578,18 @@ selectAllBtn.addEventListener("click", () => {
     `Selecionados ${pend.length} anúncio(s)` +
       (done ? ` · ${done} já analisado(s), fora da seleção` : ""),
   );
+  renderPage();
+});
+
+// Seleciona só os N primeiros pendentes — útil quando "selecionar todas" traria
+// centenas de itens (ex.: depois de "Carregar pendentes do DB") e você quer
+// processar aos poucos.
+selectCountBtn.addEventListener("click", () => {
+  const pend = pendingItems();
+  const wanted = Math.max(1, Math.round(Number(selectCountInput.value)) || 1);
+  const n = Math.min(wanted, pend.length);
+  for (const it of pend.slice(0, n)) if (it.id) selected.add(it.id);
+  setStatus(`Selecionados ${n} de ${pend.length} anúncio(s) pendente(s).`);
   renderPage();
 });
 
