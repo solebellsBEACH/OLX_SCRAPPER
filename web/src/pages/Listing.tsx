@@ -10,19 +10,19 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { GitCompareArrows, ExternalLink, TrendingDown, AlertTriangle } from "lucide-react";
+import { GitCompareArrows, ExternalLink } from "lucide-react";
 import type { AdRow } from "@/types";
 import { useDb } from "@/lib/useDb";
 import { applyFilters, useFilters } from "@/lib/useFilters";
-import { formatBRL, formatDate, formatKm, formatNumber, formatPricePerKm } from "@/lib/format";
+import { formatBRL, formatDate, formatKm, formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/Layout";
 import { DataTable } from "@/components/data-table/data-table";
 import { ColumnHeader } from "@/components/data-table/column-header";
 import { Toolbar } from "@/components/data-table/toolbar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Empty, ErrorBox, Loading } from "@/components/States";
+import { AlertsBadge, MarketStatusBadge, OpportunityBadge } from "@/components/VehicleAnalysisBadges";
 
 export function Listing() {
   const navigate = useNavigate();
@@ -66,34 +66,19 @@ export function Listing() {
         ),
       },
       {
-        accessorKey: "marca",
-        header: ({ column }) => <ColumnHeader column={column} title="Marca" />,
-        cell: ({ row }) => row.original.marca ?? "—",
-        sortUndefined: "last",
-      },
-      {
-        accessorKey: "modeloVersao",
-        header: ({ column }) => <ColumnHeader column={column} title="Modelo / versão" />,
-        cell: ({ row }) => (
-          <span className="flex items-center gap-2">
-            <span className="truncate">{row.original.modeloVersao}</span>
-            {row.original.opportunity && (
-              <Badge tone="ok" title="Abaixo da média do mesmo modelo/ano">
-                <TrendingDown className="mr-1 h-3 w-3" />
-                oportunidade
-              </Badge>
-            )}
-            {row.original.record.categoria?.kmSuspeito && (
-              <Badge
-                tone="warn"
-                title={row.original.record.categoria?.kmSuspeitoMotivo ?? "Km muito baixa pra idade do carro"}
-              >
-                <AlertTriangle className="mr-1 h-3 w-3" />
-                km suspeita
-              </Badge>
-            )}
-          </span>
-        ),
+        id: "veiculo",
+        accessorFn: (r) => [r.marca, r.modelo].filter(Boolean).join(" ") || r.modeloVersao,
+        header: ({ column }) => <ColumnHeader column={column} title="Veículo" />,
+        cell: ({ row }) => {
+          const r = row.original;
+          const main = [r.marca, r.modelo].filter(Boolean).join(" ") || r.modeloVersao;
+          return (
+            <div className="flex max-w-[280px] flex-col">
+              <span className="truncate font-medium">{main}</span>
+              {r.versao && <span className="truncate text-xs text-muted">{r.versao}</span>}
+            </div>
+          );
+        },
       },
       {
         accessorKey: "ano",
@@ -103,7 +88,7 @@ export function Listing() {
       },
       {
         accessorKey: "km",
-        header: ({ column }) => <ColumnHeader column={column} title="Km" align="right" />,
+        header: ({ column }) => <ColumnHeader column={column} title="Quilometragem" align="right" />,
         cell: ({ row }) => <div className="tnum text-right">{formatKm(row.original.km)}</div>,
         sortUndefined: "last",
       },
@@ -111,36 +96,41 @@ export function Listing() {
         accessorKey: "price",
         header: ({ column }) => <ColumnHeader column={column} title="Preço" align="right" />,
         cell: ({ row }) => (
-          <div className="tnum text-right font-semibold">{formatBRL(row.original.price)}</div>
+          <div className="text-right">
+            <div className="tnum font-semibold">{formatBRL(row.original.price)}</div>
+            {row.original.priceOld != null && (
+              <div className="tnum text-xs text-muted line-through">{formatBRL(row.original.priceOld)}</div>
+            )}
+          </div>
         ),
         sortUndefined: "last",
       },
       {
-        accessorKey: "priceOld",
-        header: ({ column }) => <ColumnHeader column={column} title="Preço antigo" align="right" />,
-        cell: ({ row }) =>
-          row.original.priceOld != null ? (
-            <div className="tnum text-right text-muted line-through">
-              {formatBRL(row.original.priceOld)}
-            </div>
-          ) : (
-            <div className="text-right text-subtle">—</div>
-          ),
+        id: "mercado",
+        accessorFn: (r) => r.analysis.priceDifferencePercent ?? null,
+        header: () => "Mercado",
+        enableSorting: false,
+        cell: ({ row }) => <MarketStatusBadge analysis={row.original.analysis} />,
+      },
+      {
+        id: "oportunidade",
+        accessorFn: (r) => r.analysis.opportunityScore ?? -1,
+        header: ({ column }) => <ColumnHeader column={column} title="Oportunidade" />,
+        cell: ({ row }) => <OpportunityBadge analysis={row.original.analysis} showScore />,
         sortUndefined: "last",
       },
       {
-        accessorKey: "pricePerKm",
-        header: ({ column }) => <ColumnHeader column={column} title="R$/km" align="right" />,
-        cell: ({ row }) => (
-          <div className="tnum text-right">{formatPricePerKm(row.original.pricePerKm)}</div>
-        ),
+        id: "alertas",
+        accessorFn: (r) => r.analysis.alerts.length,
+        header: ({ column }) => <ColumnHeader column={column} title="Alertas" />,
+        cell: ({ row }) => <AlertsBadge analysis={row.original.analysis} />,
         sortUndefined: "last",
       },
       {
         accessorKey: "location",
         header: ({ column }) => <ColumnHeader column={column} title="Local" />,
         cell: ({ row }) => (
-          <span className="block max-w-[200px] truncate text-muted">
+          <span className="block max-w-[160px] truncate text-muted">
             {row.original.location ?? "—"}
           </span>
         ),
@@ -209,7 +199,11 @@ export function Listing() {
           <DataTable
             table={table}
             onRowClick={(r) => navigate(`/anuncio/${r.id}`)}
-            rowClassName={(r) => (r.opportunity ? "row-opportunity" : undefined)}
+            rowClassName={(r) =>
+              r.analysis.opportunityLabel === "excellent" || r.analysis.opportunityLabel === "good"
+                ? "row-opportunity"
+                : undefined
+            }
           />
 
           <p className="flex items-center gap-1 text-xs text-subtle">

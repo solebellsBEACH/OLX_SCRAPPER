@@ -107,6 +107,58 @@ export interface CarMetric {
   nota: string | null;
 }
 
+/** Alerta acionável sobre um anúncio (ver computeVehicleAnalysis em lib/rows.ts). */
+export interface VehicleAlert {
+  type: string;
+  severity: "attention" | "danger";
+  title: string;
+  description: string;
+}
+
+/** Sinal positivo sobre um anúncio (ver computeVehicleAnalysis em lib/rows.ts). */
+export interface VehicleSignal {
+  type: string;
+  title: string;
+  description: string;
+}
+
+/**
+ * Como o opportunityScore final foi formado (transparência/debug — nível 3, não pro
+ * resumo em linguagem simples). Cada campo de ajuste só existe quando aquele componente
+ * de fato entrou no cálculo (ex.: sem amostra de mercado, priceAdjustment fica ausente).
+ */
+export interface VehicleScoreBreakdown {
+  base: number;
+  priceAdjustment?: number;
+  conditionAdjustment?: number;
+  mileageAdjustment?: number;
+  final: number;
+}
+
+/**
+ * Resumo de análise de um anúncio, derivado só de dados já disponíveis no frontend
+ * (preço, km, categoria da IA, comparação com o grupo marca+modelo+ano).
+ * Todo campo é opcional: dado insuficiente não deve quebrar a UI, só resultar em "sem info".
+ */
+export interface VehicleAnalysisSummary {
+  opportunityScore?: number; // 0-100
+  opportunityLabel?: "excellent" | "good" | "fair" | "poor";
+
+  confidenceScore?: number; // 0-100
+  confidenceLabel?: "high" | "medium" | "low";
+
+  priceStatus?: "well_below" | "below" | "market" | "above" | "well_above";
+
+  priceDifferencePercent?: number;
+  marketAveragePrice?: number;
+  marketSampleSize?: number;
+
+  alerts: VehicleAlert[];
+  positiveSignals: VehicleSignal[];
+
+  scoreBreakdown?: VehicleScoreBreakdown;
+}
+
 /** Linha achatada usada pela tabela e pelos agregados do dashboard. */
 export interface AdRow {
   id: string;
@@ -127,4 +179,6 @@ export interface AdRow {
   thumb: string | null;
   /** preço abaixo da média do mesmo modelo+ano (grupo com 2+ anúncios). */
   opportunity: boolean;
+  /** resumo de análise v1 (score de oportunidade, confiança, alertas, sinais). */
+  analysis: VehicleAnalysisSummary;
 }

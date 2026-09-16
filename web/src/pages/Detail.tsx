@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorBox, Loading } from "@/components/States";
+import { VehicleSummary } from "@/components/VehicleSummary";
 
 export function Detail() {
   const { id = "" } = useParams();
@@ -158,7 +159,10 @@ export function Detail() {
             <span className="text-sm text-subtle tnum">{formatDate(row.date)}</span>
           </div>
 
-          <Section title="Categoria (IA)">
+          <VehicleSummary analysis={row.analysis} price={row.price} />
+
+          <Section title="Especificações">
+            <p className="mb-2 text-xs text-subtle">Estimadas pela IA a partir do anúncio.</p>
             {cat ? (
               <>
                 {cat.kmSuspeito && (
@@ -187,7 +191,7 @@ export function Detail() {
             )}
           </Section>
 
-          <Section title={`Properties (${detail.properties?.length ?? 0})`}>
+          <Section title={`Dados do anúncio (${detail.properties?.length ?? 0})`}>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
               {detail.properties?.map((p) => <Item key={p.label} k={p.label} v={p.value} />)}
             </dl>

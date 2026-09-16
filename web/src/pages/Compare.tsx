@@ -10,7 +10,8 @@ import { PageHeader } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorBox, Loading } from "@/components/States";
 import { cn } from "@/lib/cn";
-import type { CarMetric, CompareRankingItem } from "@/types";
+import type { AdRow, CarMetric, CompareRankingItem } from "@/types";
+import { VehicleCompactSummary } from "@/components/VehicleCompactSummary";
 
 function fmtKmL(v: number | null | undefined): string {
   return v != null ? `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km/l` : "—";
@@ -24,6 +25,114 @@ function optionsOf(properties: { label: string; value: string }[] | undefined): 
     .filter(Boolean);
 }
 
+function displayName(r: AdRow): string {
+  return r.record.detail.title || r.modeloVersao;
+}
+
+/**
+ * Diferenças determinísticas, geradas só de dados estruturados já disponíveis — nada de
+ * texto de IA aqui. Com 2 veículos, compara par a par (valor da diferença). Com 3-4,
+ * aponta o extremo de cada dimensão (não um "vencedor geral" — cada frase é sobre uma
+ * dimensão só). Só entra na lista o que de fato diferencia (sem empate, sem dado ausente).
+ */
+function computeDifferences(rows: AdRow[]): string[] {
+  const lines: string[] = [];
+
+  if (rows.length === 2) {
+    const [a, b] = rows;
+
+    if (a.price != null && b.price != null && a.price !== b.price) {
+      const [cheaper, pricier] = a.price < b.price ? [a, b] : [b, a];
+      lines.push(
+        `${displayName(cheaper)} é ${formatBRL(Math.abs(a.price - b.price))} mais barato que ${displayName(pricier)}.`,
+      );
+    }
+
+    if (a.km != null && b.km != null && a.km !== b.km) {
+      const [lower, higher] = a.km < b.km ? [a, b] : [b, a];
+      lines.push(`${displayName(lower)} tem ${formatKm(Math.abs(a.km - b.km))} a menos que ${displayName(higher)}.`);
+    }
+
+    if (a.ano != null && b.ano != null && a.ano !== b.ano) {
+      const [newer, older] = a.ano > b.ano ? [a, b] : [b, a];
+      const diff = Math.abs(a.ano - b.ano);
+      lines.push(`${displayName(newer)} é ${diff} ano${diff > 1 ? "s" : ""} mais novo que ${displayName(older)}.`);
+    }
+
+    const aDiff = a.analysis.priceDifferencePercent;
+    const bDiff = b.analysis.priceDifferencePercent;
+    if (aDiff != null && bDiff != null && Math.abs(aDiff) !== Math.abs(bDiff)) {
+      const closer = Math.abs(aDiff) < Math.abs(bDiff) ? a : b;
+      lines.push(`${displayName(closer)} está mais próximo do preço médio do mercado.`);
+    }
+
+    const aAlerts = a.analysis.alerts.length;
+    const bAlerts = b.analysis.alerts.length;
+    if (aAlerts !== bAlerts) {
+      const more = aAlerts > bAlerts ? a : b;
+      lines.push(`${displayName(more)} possui mais alertas (${Math.max(aAlerts, bAlerts)} vs ${Math.min(aAlerts, bAlerts)}).`);
+    }
+
+    return lines;
+  }
+
+  // 3-4 veículos: extremo de cada dimensão, só quando há pelo menos 2 valores pra comparar.
+  const withPrice = rows.filter((r): r is AdRow & { price: number } => r.price != null);
+  if (withPrice.length >= 2) {
+    const cheapest = withPrice.reduce((m, r) => (r.price < m.price ? r : m));
+    lines.push(`${displayName(cheapest)} tem o menor preço (${formatBRL(cheapest.price)}).`);
+  }
+
+  const withKm = rows.filter((r): r is AdRow & { km: number } => r.km != null);
+  if (withKm.length >= 2) {
+    const lowestKm = withKm.reduce((m, r) => (r.km < m.km ? r : m));
+    lines.push(`${displayName(lowestKm)} tem a menor quilometragem (${formatKm(lowestKm.km)}).`);
+  }
+
+  const withAno = rows.filter((r): r is AdRow & { ano: number } => r.ano != null);
+  if (withAno.length >= 2) {
+    const newest = withAno.reduce((m, r) => (r.ano > m.ano ? r : m));
+    lines.push(`${displayName(newest)} é o mais novo (${newest.ano}).`);
+  }
+
+  const withMarket = rows.filter((r) => r.analysis.priceDifferencePercent != null);
+  if (withMarket.length >= 2) {
+    const closest = withMarket.reduce((m, r) =>
+      Math.abs(r.analysis.priceDifferencePercent!) < Math.abs(m.analysis.priceDifferencePercent!) ? r : m,
+    );
+    lines.push(`${displayName(closest)} está mais próximo do preço médio do mercado.`);
+  }
+
+  const maxAlerts = Math.max(...rows.map((r) => r.analysis.alerts.length));
+  if (maxAlerts > 0) {
+    const fewest = rows.reduce((m, r) => (r.analysis.alerts.length < m.analysis.alerts.length ? r : m));
+    if (fewest.analysis.alerts.length < maxAlerts) {
+      lines.push(`${displayName(fewest)} tem menos alertas (${fewest.analysis.alerts.length}).`);
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Frase de tradeoff (só com exatamente 2 veículos e quando o preço mais perto do mercado e
+ * a menor km não são o mesmo carro — senão não há tradeoff real, um deles "ganha" nas duas
+ * dimensões e a frase ficaria redundante com computeDifferences).
+ */
+function computeTradeoff(rows: AdRow[]): string | null {
+  if (rows.length !== 2) return null;
+  const [a, b] = rows;
+  const aDiff = a.analysis.priceDifferencePercent;
+  const bDiff = b.analysis.priceDifferencePercent;
+  if (aDiff == null || bDiff == null || a.km == null || b.km == null || a.km === b.km) return null;
+
+  const closerToMarket = Math.abs(aDiff) <= Math.abs(bDiff) ? "primeiro" : "segundo";
+  const lowerKm = a.km <= b.km ? "primeiro" : "segundo";
+  if (closerToMarket === lowerKm) return null;
+
+  return `O ${closerToMarket} veículo tem preço mais próximo do mercado, enquanto o ${lowerKm} possui menor quilometragem.`;
+}
+
 export function Compare() {
   const [params] = useSearchParams();
   const { db, status, error, refetch } = useDb();
@@ -33,6 +142,9 @@ export function Compare() {
     () => toRows(Object.fromEntries(ids.filter((i) => db[i]).map((i) => [i, db[i]]))),
     [db, ids],
   );
+
+  const differences = useMemo(() => computeDifferences(rows), [rows]);
+  const tradeoff = useMemo(() => computeTradeoff(rows), [rows]);
 
   const [comparing, setComparing] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
@@ -119,6 +231,7 @@ export function Compare() {
   const maxAno = Math.max(...(rows.map((r) => r.ano).filter((n): n is number => n != null)));
 
   const allOptions = [...new Set(rows.flatMap((r) => optionsOf(r.record.detail.properties)))].sort();
+  const hasAiOutput = comparing || compareError || ranking || loadingMetrics || metricsError || metrics;
 
   return (
     <div className="flex flex-col gap-6">
@@ -133,44 +246,31 @@ export function Compare() {
         </Button>
       </PageHeader>
 
-      {(comparing || compareError || ranking) && (
+      {/* Resumos compactos — a primeira coisa que o comprador vê */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {rows.map((r) => (
+          <VehicleCompactSummary key={r.id} row={r} title={displayName(r)} />
+        ))}
+      </div>
+
+      {/* Principais diferenças — determinístico, sem IA */}
+      {(differences.length > 0 || tradeoff) && (
         <section className="border border-border bg-surface">
-          <p className="border-b border-border px-3 py-2 text-sm font-semibold">Comparação da IA</p>
-          <div className="p-3">
-            {comparing && <p className="text-sm text-muted">Aguardando a IA (pode levar um pouco)...</p>}
-            {compareError && <p className="text-sm text-danger">{compareError}</p>}
-            {ranking && (
-              <ol className="flex flex-col gap-2">
-                {ranking.map((item) => {
-                  const row = rows.find((r) => r.id === item.id);
-                  return (
-                    <li
-                      key={item.id}
-                      className={cn(
-                        "border border-border p-3 text-sm",
-                        item.posicao === 1 && "border-ok bg-[#f0fdf4]",
-                      )}
-                    >
-                      <span className="font-semibold">
-                        {item.posicao}º — {row?.record.detail.title ?? row?.modeloVersao ?? item.id}
-                      </span>
-                      <p className="mt-1 text-muted">{item.texto}</p>
-                    </li>
-                  );
-                })}
-              </ol>
+          <p className="border-b border-border px-3 py-2 text-sm font-semibold">Principais diferenças</p>
+          <div className="flex flex-col gap-2 p-3 text-sm">
+            {differences.length > 0 && (
+              <ul className="flex list-disc flex-col gap-1 pl-4">
+                {differences.map((d, i) => (
+                  <li key={i}>{d}</li>
+                ))}
+              </ul>
             )}
+            {tradeoff && <p className="text-muted">{tradeoff}</p>}
           </div>
         </section>
       )}
 
-      {metricsError && (
-        <section className="border border-border bg-surface">
-          <p className="border-b border-border px-3 py-2 text-sm font-semibold">Métricas da IA</p>
-          <p className="p-3 text-sm text-danger">{metricsError}</p>
-        </section>
-      )}
-
+      {/* Tabela detalhada de atributos */}
       <div className="overflow-x-auto border border-border bg-surface">
         <table className="w-full text-sm">
           <tbody>
@@ -193,7 +293,7 @@ export function Compare() {
                     to={`/anuncio/${r.id}`}
                     className="mt-2 block font-semibold hover:text-accent"
                   >
-                    {r.record.detail.title || r.modeloVersao}
+                    {displayName(r)}
                   </Link>
                   <a
                     href={r.url}
@@ -257,14 +357,6 @@ export function Compare() {
                     return kg != null ? `${kg.toLocaleString("pt-BR")} kg` : "—";
                   }}
                 />
-                <tr className="border-b border-border bg-bg">
-                  <Th>Obs. (IA)</Th>
-                  {rows.map((r) => (
-                    <td key={r.id} className="p-3 text-xs text-muted">
-                      {metrics[r.id]?.nota ?? "—"}
-                    </td>
-                  ))}
-                </tr>
               </>
             )}
             <Row label="Local" rows={rows} render={(r) => r.location ?? "—"} />
@@ -297,6 +389,49 @@ export function Compare() {
           </tbody>
         </table>
       </div>
+
+      {/* Análise complementar da IA — texto livre, só depois dos dados estruturados */}
+      {hasAiOutput && (
+        <section className="border border-border bg-surface">
+          <p className="border-b border-border px-3 py-2 text-sm font-semibold">Análise complementar da IA</p>
+          <div className="flex flex-col gap-4 p-3 text-sm">
+            {comparing && <p className="text-muted">Aguardando a IA (pode levar um pouco)...</p>}
+            {compareError && <p className="text-danger">{compareError}</p>}
+            {ranking && (
+              <ol className="flex flex-col gap-2">
+                {ranking.map((item) => {
+                  const row = rows.find((r) => r.id === item.id);
+                  return (
+                    <li
+                      key={item.id}
+                      className={cn("border border-border p-3", item.posicao === 1 && "border-ok bg-[#f0fdf4]")}
+                    >
+                      <span className="font-semibold">
+                        {item.posicao}º — {row ? displayName(row) : item.id}
+                      </span>
+                      <p className="mt-1 text-muted">{item.texto}</p>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+            {loadingMetrics && <p className="text-muted">Buscando métricas com a IA...</p>}
+            {metricsError && <p className="text-danger">{metricsError}</p>}
+            {metrics && Object.values(metrics).some((m) => m.nota) && (
+              <div className="flex flex-col gap-2">
+                {rows.map((r) =>
+                  metrics[r.id]?.nota ? (
+                    <p key={r.id}>
+                      <span className="font-semibold">{displayName(r)}:</span>{" "}
+                      <span className="text-muted">{metrics[r.id]?.nota}</span>
+                    </p>
+                  ) : null,
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -312,9 +447,9 @@ function Row({
   best,
 }: {
   label: string;
-  rows: ReturnType<typeof toRows>;
-  render: (r: ReturnType<typeof toRows>[number]) => React.ReactNode;
-  best?: (r: ReturnType<typeof toRows>[number]) => boolean;
+  rows: AdRow[];
+  render: (r: AdRow) => React.ReactNode;
+  best?: (r: AdRow) => boolean;
 }) {
   return (
     <tr className="border-b border-border">
