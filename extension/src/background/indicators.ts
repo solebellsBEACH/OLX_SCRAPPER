@@ -1,5 +1,5 @@
 import { dbAll } from "./db";
-import { scoreOf } from "./items";
+import { isDeepAnalyzed, scoreOf } from "./items";
 import { getActiveOlxTab, injectContent } from "./tabs";
 import type { Card, Item, ShowIndicatorsResult } from "./types";
 
@@ -15,7 +15,7 @@ export async function checkKnown(ids: string[]): Promise<Array<{ id: string; sta
   const db = await dbAll();
   return ids.map((id) => {
     const rec = db[id];
-    const deepAnalyzed = Boolean(rec && !(rec as Record<string, unknown>).shallow);
+    const deepAnalyzed = isDeepAnalyzed(rec);
     return {
       id,
       status: deepAnalyzed ? "done" : "pending",

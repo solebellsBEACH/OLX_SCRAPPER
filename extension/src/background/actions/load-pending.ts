@@ -1,5 +1,5 @@
 import { dbAll } from "../db";
-import { recordToItem } from "../items";
+import { isDeepAnalyzed, recordToItem } from "../items";
 import type { AnalyzeResult, Item } from "../types";
 
 /**
@@ -13,7 +13,7 @@ import type { AnalyzeResult, Item } from "../types";
 export async function loadPending(): Promise<AnalyzeResult> {
   const db = await dbAll();
   const items: Item[] = Object.values(db)
-    .filter((rec) => Boolean((rec as Record<string, unknown>).shallow))
+    .filter((rec) => !isDeepAnalyzed(rec))
     .map((rec) => recordToItem(rec));
   return { count: items.length, items, categorias: null, raw: null };
 }

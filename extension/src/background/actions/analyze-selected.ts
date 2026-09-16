@@ -1,6 +1,6 @@
 import { categorize } from "../ai-categorize";
 import { dbAll, dbUpsert } from "../db";
-import { detailToSection } from "../items";
+import { detailToSection, isDeepAnalyzed } from "../items";
 import { progress } from "../progress";
 import { ensureProxy } from "../proxy";
 import { delay, getActiveOlxTab, injectContent, navigate } from "../tabs";
@@ -19,7 +19,7 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
   const db = await dbAll();
   const pending = targets.filter((t) => {
     const rec = db[t.id];
-    const alreadyDone = Boolean(rec && !(rec as Record<string, unknown>).shallow);
+    const alreadyDone = isDeepAnalyzed(rec);
     if (alreadyDone && !force) {
       skipped.push(t.id);
       return false;
@@ -69,6 +69,11 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
         detail: data,
         categoria,
         htmlLength: data.htmlLength ?? null,
+        // O merge no proxy é raso (spread por cima do registro existente): sem isto, um
+        // registro que começou raso (shallow: true) nunca deixa de ser "raso" no db.json,
+        // mesmo depois de analisado a fundo — e "Carregar pendentes" volta a listá-lo pra
+        // sempre. Só marcar como concluído zera o flag de fato.
+        shallow: false,
       });
       analyzed.push(record);
       progress(`✔ ${t.id} salvo no DB (${pos})`, { id: t.id, state: "done" });

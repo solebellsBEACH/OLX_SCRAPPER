@@ -6,6 +6,24 @@ export function scoreOf(cat: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Um registro foi analisado a fundo (visitou a página do anúncio) quando `shallow` é
+ * false — MAS o merge do proxy é raso (spread por cima do registro existente) e, antes
+ * desta checagem existir, `analyzeSelected` não reenviava `shallow: false` ao concluir,
+ * então o flag ficava preso em `true` pra sempre mesmo após a análise completa. Como
+ * fallback (e pra registros antigos já afetados, sem precisar de migração manual), usa
+ * `detail.description`: `itemToRecord` sempre grava `null` ali pra registros rasos, e
+ * quem visita a página de verdade quase sempre tem descrição (ld+json ou meta), então é
+ * um sinal confiável de análise completa mesmo quando o flag mentiu.
+ */
+export function isDeepAnalyzed(rec: unknown): boolean {
+  if (!rec || typeof rec !== "object") return false;
+  const r = rec as Record<string, unknown>;
+  if (!r.shallow) return true;
+  const detail = r.detail as Record<string, unknown> | undefined;
+  return typeof detail?.description === "string" && detail.description.length > 0;
+}
+
 export function mergeItems(cards: Card[], categorias: unknown[] | null, db: Record<string, DbRecord>): Item[] {
   const byIndex = new Map<number, Categoria>();
   if (Array.isArray(categorias)) {
@@ -19,7 +37,7 @@ export function mergeItems(cards: Card[], categorias: unknown[] | null, db: Reco
   return cards.map((card, i) => {
     const id = typeof card.id === "string" ? card.id : null;
     const rec = id ? db[id] : undefined;
-    const deepAnalyzed = Boolean(rec && !(rec as Record<string, unknown>).shallow);
+    const deepAnalyzed = isDeepAnalyzed(rec);
     const fresh = byIndex.get(typeof card.index === "number" ? card.index : i) ?? null;
     // A recategorização da listagem só vê título/detalhes (sem descrição), então quase
     // nunca traz score. Se o item já foi analisado a fundo e tem score salvo no DB, usa
@@ -110,7 +128,7 @@ export function recordToItem(rec: DbRecord): Item {
     date: (detail?.dateText as string | null) ?? (detail?.publishedAt as string | null) ?? null,
     categoria: ((rec as Record<string, unknown>).categoria as Categoria | null) ?? null,
     inDb: true,
-    deepAnalyzed: !(rec as Record<string, unknown>).shallow,
+    deepAnalyzed: isDeepAnalyzed(rec),
   };
 }
 

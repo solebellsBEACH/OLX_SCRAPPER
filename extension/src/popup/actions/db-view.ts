@@ -1,3 +1,4 @@
+import { isDeepAnalyzed } from "../../background/items";
 import { clearDbBtn, dbDumpEl, viewDbBtn } from "../dom";
 import { send } from "../messaging";
 import { renderPage } from "../render/list";
@@ -6,11 +7,11 @@ import { setStatus } from "../status";
 
 export async function refreshDbFlags(): Promise<void> {
   const response = await send("getDb");
-  const db = (response.db ?? {}) as Record<string, { shallow?: boolean }>;
+  const db = (response.db ?? {}) as Record<string, unknown>;
   for (const it of state.items) {
     const rec = it.id ? db[it.id] : undefined;
     it.inDb = Boolean(rec);
-    it.deepAnalyzed = Boolean(rec && !rec.shallow);
+    it.deepAnalyzed = isDeepAnalyzed(rec);
   }
 }
 
