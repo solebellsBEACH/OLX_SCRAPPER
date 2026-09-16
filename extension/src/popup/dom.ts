@@ -1,0 +1,35 @@
+const $ = <T extends HTMLElement>(id: string): T => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`elemento #${id} não encontrado`);
+  return el as T;
+};
+
+export const statusEl = $<HTMLDivElement>("status");
+export const listEl = $<HTMLDivElement>("list");
+export const pagerEl = $<HTMLDivElement>("pager");
+export const pageInfoEl = $<HTMLSpanElement>("pageInfo");
+export const toolbarEl = $<HTMLDivElement>("toolbar");
+export const dbDumpEl = $<HTMLPreElement>("dbDump");
+export const analyzeBtn = $<HTMLButtonElement>("analyzeBtn");
+export const scrollBtn = $<HTMLButtonElement>("scrollBtn");
+export const showIndicatorsBtn = $<HTMLButtonElement>("showIndicatorsBtn");
+export const loadPendingBtn = $<HTMLButtonElement>("loadPendingBtn");
+export const crawlBtn = $<HTMLButtonElement>("crawlBtn");
+export const maxPagesEl = $<HTMLInputElement>("maxPages");
+export const scrollEachEl = $<HTMLInputElement>("scrollEach");
+export const skipKnownEl = $<HTMLInputElement>("skipKnown");
+export const saveToDbEl = $<HTMLInputElement>("saveToDb");
+export const prevBtn = $<HTMLButtonElement>("prevBtn");
+export const nextBtn = $<HTMLButtonElement>("nextBtn");
+export const selAllBtn = $<HTMLInputElement>("selAllBtn");
+export const selectAllBtn = $<HTMLButtonElement>("selectAllBtn");
+export const selectCountInput = $<HTMLInputElement>("selectCountInput");
+export const selectCountBtn = $<HTMLButtonElement>("selectCountBtn");
+export const clearSelBtn = $<HTMLButtonElement>("clearSelBtn");
+export const analyzeSelBtn = $<HTMLButtonElement>("analyzeSelBtn");
+export const viewDbBtn = $<HTMLButtonElement>("viewDbBtn");
+export const clearDbBtn = $<HTMLButtonElement>("clearDbBtn");
+export const tabCrawlBtn = $<HTMLButtonElement>("tabCrawlBtn");
+export const tabAnalyzeBtn = $<HTMLButtonElement>("tabAnalyzeBtn");
+export const panelCrawl = $<HTMLElement>("panelCrawl");
+export const panelAnalyze = $<HTMLElement>("panelAnalyze");

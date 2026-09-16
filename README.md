@@ -55,17 +55,26 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
   - `src/manifest.json` — MV3. Permissões: `activeTab`, `scripting`. Hosts: `https://*.olx.com.br/*`
     (os anúncios ficam em subdomínios regionais, ex. `es.olx.com.br`) e `http://localhost:8787/*`
     (o proxy). Sem `default_popup` — clicar no ícone abre uma **janela** (`chrome.windows.create`).
-  - `src/background.ts` — service worker. Abre a janela, orquestra as ações, fala com o proxy,
-    lê/grava o `db.json` (via proxy), navega a aba do OLX nas análises de detalhe.
-  - `src/content.ts` — injetado sob demanda na aba do OLX. **Não usa `console.*`**; só extrai:
-    - `extractSections()` — cards da listagem (título, preço, preço antigo, **km**, **cor**,
-      local, data, imagem, nº de fotos, `details[]`).
-    - `extractAdPage()` — página do anúncio (título, preço, descrição, `properties[]`, imagens,
-      `ld+json`, `htmlLength`). Tenta ler o estado interno do OLX (`initial-data` /
-      `__PRELOADED_STATE__`, `deepFindAd`) e cai para `<h1>` / `meta` / JSON-LD.
-    - `scrollAutomatic()` — scroll suave até o fim (~3 s); progresso via mensagem.
-  - `src/popup.ts` — UI da janela: lista paginada, seleção, paginação, "Ver DB", e **todo o
-    log** (`console.table` etc.) no console desta janela.
+  - `src/background.ts`, `src/content.ts`, `src/popup.ts` — **entry points finos** do webpack
+    (só um `import "./<pasta>/index"`); a implementação de cada um vive numa pasta de mesmo nome
+    ao lado, dividida por responsabilidade (ver abaixo). Isso mantém os três bundles do
+    `webpack.config.js` (`background`, `content`, `popup`) intactos.
+  - `src/background/` — service worker. Abre a janela (`panel.ts`), orquestra as ações
+    (`actions/analyze.ts`, `actions/crawl-listing.ts`, `actions/analyze-selected.ts`,
+    `actions/load-pending.ts`, `actions/auto-scroll.ts`), fala com o proxy (`proxy.ts`,
+    `ai-categorize.ts`), lê/grava o `db.json` (`db.ts`), navega a aba do OLX (`tabs.ts`) e
+    despacha as mensagens do popup (`message-router.ts`).
+  - `src/content/` — injetado sob demanda na aba do OLX. **Não usa `console.*`**; só extrai:
+    - `listing-extractor.ts` (`extractSections()`) — cards da listagem (título, preço, preço
+      antigo, **km**, **cor**, local, data, imagem, nº de fotos, `details[]`).
+    - `ad-page-extractor.ts` (`extractAdPage()`) — página do anúncio (título, preço, descrição,
+      `properties[]`, imagens, `ld+json`, `htmlLength`). Tenta ler o estado interno do OLX
+      (`initial-data` / `__PRELOADED_STATE__`, `deepFindAd`) e cai para `<h1>` / `meta` / JSON-LD.
+    - `scroll.ts` (`scrollAutomatic()`) — scroll suave até o fim (~3 s); progresso via mensagem.
+    - `card-marking.ts` / `auto-mark.ts` — borda verde/amarela + score direto nos cards do OLX.
+  - `src/popup/` — UI da janela: `dom.ts` (refs dos elementos), `state.ts` (estado mutável
+    compartilhado), `render/` (lista paginada, badges, tabs), `actions/` (um módulo por botão),
+    e **todo o log** (`logging.ts`, `console.table` etc.) no console desta janela.
   - `public/popup.html`, `styles/popup.css` — marcação e estilo (minimalistas).
 - **`proxy/`** — servidor Node (HTTP puro, **sem dependências**, Node ≥ 18.17).
   - `server.mjs` — guarda a chave DeepSeek e expõe:
@@ -244,13 +253,25 @@ OLX_SCRAPPER/
 - Categorização assume **veículos**; outras categorias do OLX não foram tratadas.
 - O recorte "só carros" depende do campo `tipo` que a **IA** infere. Se ela errar o `tipo`
   (ou não devolver), o filtro é permissivo: **sem `tipo` => trata como carro**. A lista de
-  tipos não-carro fica em `NAO_CARRO` no `background.ts`.
+  tipos não-carro fica em `NAO_CARRO` em `background/constants.ts`.
 
 ---
 
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-09-16
+
+- **Refatoração de `extension/src`** para arquitetura escalável: cada entry point
+  (`background.ts`, `content.ts`, `popup.ts`) virou um bootstrap fino (`import "./<pasta>/index"`)
+  e a implementação foi dividida em pastas de mesmo nome (`background/`, `content/`, `popup/`),
+  organizadas por responsabilidade (`actions/`, `render/`, `db.ts`, `tabs.ts`, `state.ts`,
+  etc. — ver seção [Arquitetura](#arquitetura)). Motivo: os três arquivos tinham crescido para
+  ~600–1050 linhas cada, misturando tipos, extração de DOM, chamadas de IA, persistência e UI
+  num único módulo, dificultando manutenção. Nenhum comportamento mudou; os três bundles do
+  `webpack.config.js` continuam apontando para os mesmos entry points e o `npm run build`
+  gera os mesmos três arquivos (`background.js`, `content.js`, `popup.js`).
 
 ### 2026-09-14
 
