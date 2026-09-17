@@ -2,14 +2,11 @@ import { categorize } from "../ai-categorize";
 import { dbAll, dbUpsert } from "../db";
 import { detailToSection, isDeepAnalyzed } from "../items";
 import { progress } from "../progress";
-import { ensureProxy } from "../proxy";
 import { delay, getActiveOlxTab, injectContent, navigate } from "../tabs";
 import type { DbRecord, SelectedResult, Target } from "../types";
 import { isCarro } from "../vehicle-filter";
 
 export async function analyzeSelected(targets: Target[], force = false): Promise<SelectedResult> {
-  await ensureProxy();
-
   const analyzed: DbRecord[] = [];
   const errors: Array<{ id: string; error: string }> = [];
   const skipped: string[] = [];
@@ -69,8 +66,8 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
         detail: data,
         categoria,
         htmlLength: data.htmlLength ?? null,
-        // O merge no proxy é raso (spread por cima do registro existente): sem isto, um
-        // registro que começou raso (shallow: true) nunca deixa de ser "raso" no db.json,
+        // O merge no store é raso (spread por cima do registro existente): sem isto, um
+        // registro que começou raso (shallow: true) nunca deixa de ser "raso" na base,
         // mesmo depois de analisado a fundo — e "Carregar pendentes" volta a listá-lo pra
         // sempre. Só marcar como concluído zera o flag de fato.
         shallow: false,

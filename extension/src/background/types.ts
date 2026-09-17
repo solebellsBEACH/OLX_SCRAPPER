@@ -78,6 +78,14 @@ export interface InMessage {
     | "crawlListing"
     | "getDb"
     | "clearDb"
+    | "importDb"
+    | "removeRecord"
+    | "getAiConfig"
+    | "setAiProvider"
+    | "updateAiProviderConfig"
+    | "aiAnalyze"
+    | "aiCompare"
+    | "aiMetrics"
     | "checkKnown"
     | "showIndicators"
     | "hideIndicators"
@@ -90,4 +98,16 @@ export interface InMessage {
   saveToDb?: boolean;
   /** só para "checkKnown": ids dos cards visíveis na página. */
   ids?: string[];
+  /** só para "importDb": mapa { [id]: DbRecord } vindo de um db.json exportado. */
+  db?: Record<string, DbRecord>;
+  /** só para "removeRecord". */
+  id?: string;
+  /** só para "setAiProvider". */
+  provider?: "deepseek" | "openai";
+  /** só para "updateAiProviderConfig". */
+  patch?: { apiUrl?: string; model?: string; timeoutMs?: number; apiKey?: string };
+  /** só para "aiAnalyze": seções cruas a categorizar. */
+  sections?: unknown[];
+  /** só para "aiCompare"/"aiMetrics": resumo dos carros. */
+  cars?: unknown[];
 }

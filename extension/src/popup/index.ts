@@ -13,6 +13,7 @@ import { registerCrawlAction } from "./actions/crawl";
 import { registerDbViewActions } from "./actions/db-view";
 import { registerIndicatorsAction } from "./actions/indicators";
 import { registerLoadPendingAction } from "./actions/load-pending";
+import { registerOpenPanelAction } from "./actions/open-panel";
 import { registerScrollAction } from "./actions/scroll";
 import { registerSelectionActions } from "./actions/selection";
 import { registerProgressListener } from "./progress-listener";
@@ -20,6 +21,7 @@ import { registerTabSwitcher } from "./render/tabs";
 
 registerTabSwitcher();
 
+registerOpenPanelAction();
 registerAnalyzeAction();
 registerCrawlAction();
 registerScrollAction();

@@ -8,7 +8,7 @@ export function scoreOf(cat: unknown): number | null {
 
 /**
  * Um registro foi analisado a fundo (visitou a página do anúncio) quando `shallow` é
- * false — MAS o merge do proxy é raso (spread por cima do registro existente) e, antes
+ * false — MAS o merge do store é raso (spread por cima do registro existente) e, antes
  * desta checagem existir, `analyzeSelected` não reenviava `shallow: false` ao concluir,
  * então o flag ficava preso em `true` pra sempre mesmo após a análise completa. Como
  * fallback (e pra registros antigos já afetados, sem precisar de migração manual), usa

@@ -1,16 +1,7 @@
-// Camada de API única. Nada no painel fala com o proxy sem passar por aqui.
-//
-// Proxy local (proxy/server.mjs):
-//   GET    /health  -> { ok, hasKey, model, provider, port, dbPath }
-//   GET    /config  -> { ok, config: AiConfig }  (provedor ativo + config de cada provedor)
-//   POST   /config  -> { provider?, deepseek?: {...}, openai?: {...} } => { ok, config: AiConfig }
-//                       cada bloco de provedor aceita { apiUrl?, model?, timeoutMs?, apiKey? }
-//   POST   /analyze -> { sections:[...] } => { ok, categorias, raw, usage }  (usa o provedor ativo)
-//   POST   /compare -> { cars:[...] } => { ok, ranking, raw, usage }  (comparador, "Comparar com IA")
-//   POST   /metrics -> { cars:[...] } => { ok, metrics, raw, usage }  (comparador, "Exibir métricas")
-//   GET    /db      -> { ok, db: { [id]: DbRecord } }
-//   POST   /db      -> { id, record } | { records:[...] } | { db:{...} }  (merge por id)
-//   DELETE /db      -> zera o db
+// Camada de API única. Nada no painel fala com o background da extensão sem
+// passar por aqui. O painel roda como página da própria extensão
+// (chrome-extension://.../panel/index.html), então tudo é chrome.runtime.sendMessage
+// pro service worker em vez de fetch HTTP — sem proxy, sem servidor local.
 
 import type {
   AiConfig,
@@ -19,10 +10,9 @@ import type {
   CompareRankingItem,
   Db,
   DbRecord,
-  HealthResponse,
 } from "@/types";
 
-/** Resumo de um carro mandado pro proxy em /compare e /metrics — não reenvia o registro inteiro. */
+/** Resumo de um carro mandado em /compare e /metrics — não reenvia o registro inteiro. */
 export interface CompareCarInput {
   id: string;
   titulo?: string | null;
@@ -39,27 +29,6 @@ export interface CompareCarInput {
   score?: number | null;
 }
 
-const DEFAULT_BASE = "http://localhost:8787";
-const LS_KEY = "olx.proxyUrl";
-
-export function getProxyUrl(): string {
-  try {
-    return localStorage.getItem(LS_KEY)?.trim() || DEFAULT_BASE;
-  } catch {
-    return DEFAULT_BASE;
-  }
-}
-
-export function setProxyUrl(url: string): void {
-  try {
-    const v = url.trim().replace(/\/+$/, "");
-    if (v) localStorage.setItem(LS_KEY, v);
-    else localStorage.removeItem(LS_KEY);
-  } catch {
-    /* ignora storage indisponível */
-  }
-}
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -71,97 +40,67 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = getProxyUrl();
-  let res: Response;
-  let text: string;
+async function send<T extends Record<string, unknown>>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
+  let response: (T & { ok: boolean; error?: string }) | undefined;
   try {
-    res = await fetch(base + path, {
-      ...init,
-      signal: AbortSignal.timeout(path === "/analyze" ? 310_000 : 15_000),
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    });
-    text = await res.text();
-  } catch (err) {
-    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
-      throw new ApiError("O tempo de espera foi excedido. Tente novamente; para análises, reduza a quantidade de anúncios.", "timeout");
-    }
-    throw new ApiError(`Não foi possível conectar ao proxy em ${base}. Verifique se ele está em execução.`, "offline");
+    response = (await chrome.runtime.sendMessage({ action, ...extra })) as (T & { ok: boolean; error?: string }) | undefined;
+  } catch {
+    throw new ApiError("A comunicação com a extensão foi interrompida. Recarregue o painel e tente novamente.", "offline");
   }
-  let body: unknown = null;
-  if (text) {
-    try {
-      body = JSON.parse(text);
-    } catch {
-      throw new ApiError("Resposta do proxy não é JSON", "payload", res.status);
-    }
+  if (!response) {
+    throw new ApiError("A extensão não respondeu. Recarregue o painel e tente novamente.", "offline");
   }
-  if (!res.ok) {
-    const msg =
-      (body as { error?: string } | null)?.error ?? `HTTP ${res.status} em ${path}`;
-    throw new ApiError(msg, "http", res.status);
+  if (!response.ok) {
+    throw new ApiError(response.error ?? "Falha desconhecida", "http");
   }
-  return body as T;
+  return response;
 }
 
 export const api = {
-  async health(): Promise<HealthResponse> {
-    return request<HealthResponse>("/health");
-  },
-
   async getConfig(): Promise<AiConfig> {
-    const r = await request<{ ok: boolean; config: AiConfig }>("/config");
+    const r = await send<{ config: AiConfig }>("getAiConfig");
     return r.config;
   },
 
   /** Troca o provedor ativo (DeepSeek/OpenAI). */
   async setActiveProvider(provider: AiProviderId): Promise<AiConfig> {
-    const r = await request<{ ok: boolean; config: AiConfig }>("/config", {
-      method: "POST",
-      body: JSON.stringify({ provider }),
-    });
+    const r = await send<{ config: AiConfig }>("setAiProvider", { provider });
     return r.config;
   },
 
-  /** Campos omitidos/vazios mantêm o valor atual no proxy (a chave nunca é apagada à toa). */
+  /** Campos omitidos/vazios mantêm o valor atual (a chave nunca é apagada à toa). */
   async updateProviderConfig(
     provider: AiProviderId,
     patch: { apiUrl?: string; model?: string; timeoutMs?: number; apiKey?: string },
   ): Promise<AiConfig> {
-    const r = await request<{ ok: boolean; config: AiConfig }>("/config", {
-      method: "POST",
-      body: JSON.stringify({ [provider]: patch }),
-    });
+    const r = await send<{ config: AiConfig }>("updateAiProviderConfig", { provider, patch });
     return r.config;
   },
 
   async getDb(): Promise<Db> {
-    const r = await request<{ ok: boolean; db: Db }>("/db");
+    const r = await send<{ db: Db }>("getDb");
     return r.db ?? {};
   },
 
-  /** Merge por id no db.json. */
+  /** Merge por id no armazenamento da extensão. */
   async mergeRecord(record: Partial<DbRecord> & { id: string }): Promise<Db> {
-    const r = await request<{ ok: boolean; db: Db }>("/db", {
-      method: "POST",
-      body: JSON.stringify({ id: record.id, record }),
-    });
+    const r = await send<{ db: Db }>("importDb", { db: { [record.id]: record } });
     return r.db ?? {};
   },
 
   async removeRecord(id: string): Promise<Db> {
-    // O proxy não tem DELETE por id; lemos, removemos e regravamos o mapa inteiro.
-    const db = await this.getDb();
-    delete db[id];
-    const r = await request<{ ok: boolean; db: Db }>("/db", {
-      method: "POST",
-      body: JSON.stringify({ db }),
-    });
+    const r = await send<{ db: Db }>("removeRecord", { id });
     return r.db ?? {};
   },
 
   async clearDb(): Promise<void> {
-    await request<{ ok: boolean }>("/db", { method: "DELETE" });
+    await send("clearDb");
+  },
+
+  /** Importa um db.json exportado anteriormente (merge por id). */
+  async importDb(db: Db): Promise<Db> {
+    const r = await send<{ db: Db }>("importDb", { db });
+    return r.db ?? {};
   },
 
   /** Reanálise da IA para uma ou mais seções. Devolve categorias[] alinhadas por index. */
@@ -171,10 +110,7 @@ export const api = {
     raw: string | null;
     usage: unknown;
   }> {
-    return request("/analyze", {
-      method: "POST",
-      body: JSON.stringify({ sections }),
-    });
+    return send("aiAnalyze", { sections });
   },
 
   /** "Comparar com IA": ranking do melhor pro pior, com uma frase de justificativa cada. */
@@ -183,10 +119,7 @@ export const api = {
     ranking: CompareRankingItem[] | null;
     raw: string | null;
   }> {
-    return request("/compare", {
-      method: "POST",
-      body: JSON.stringify({ cars }),
-    });
+    return send("aiCompare", { cars });
   },
 
   /** "Exibir métricas": consumo álcool/gasolina, cv e peso estimados pela IA (conhecimento geral do modelo). */
@@ -195,9 +128,6 @@ export const api = {
     metrics: CarMetric[] | null;
     raw: string | null;
   }> {
-    return request("/metrics", {
-      method: "POST",
-      body: JSON.stringify({ cars }),
-    });
+    return send("aiMetrics", { cars });
   },
 };

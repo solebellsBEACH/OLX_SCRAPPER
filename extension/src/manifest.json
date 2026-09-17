@@ -3,8 +3,8 @@
   "name": "OLX Workspace",
   "version": "1.0.0",
   "description": "Análise de anúncios OLX com IA",
-  "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://*.olx.com.br/*", "http://localhost:8787/*"],
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
+  "host_permissions": ["https://*.olx.com.br/*", "https://api.deepseek.com/*", "https://api.openai.com/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {

@@ -60,33 +60,37 @@ export function useDb(): UseDb {
   return { db, rows, status, error, refetch: load };
 }
 
-type ProxyState = "checking" | "online" | "offline" | "nokey";
+type AiState = "checking" | "ready" | "nokey";
 
-export function useProxyHealth(intervalMs = 15000) {
-  const [state, setState] = useState<ProxyState>("checking");
+/** Só olha se o provedor de IA ativo tem chave configurada (chrome.storage.local) — sem polling de rede. */
+export function useAiStatus() {
+  const [state, setState] = useState<AiState>("checking");
   const [detail, setDetail] = useState<string>("");
 
+  const check = useCallback(async () => {
+    try {
+      const config = await api.getConfig();
+      const active = config.providers[config.provider];
+      setState(active.hasKey ? "ready" : "nokey");
+      setDetail(`${active.label} · ${active.model}`);
+    } catch {
+      setState("nokey");
+      setDetail("");
+    }
+  }, []);
+
   useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      try {
-        const h = await api.health();
-        if (!alive) return;
-        setState(h.hasKey ? "online" : "nokey");
-        setDetail(h.hasKey ? `${h.model} · ${h.dbPath}` : "DEEPSEEK_API_KEY ausente em proxy/.env");
-      } catch {
-        if (!alive) return;
-        setState("offline");
-        setDetail("");
-      }
+    void check();
+    const onFocus = () => {
+      if (document.visibilityState === "visible") void check();
     };
-    void tick();
-    const id = setInterval(tick, intervalMs);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     return () => {
-      alive = false;
-      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [intervalMs]);
+  }, [check]);
 
   return { state, detail };
 }

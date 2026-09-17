@@ -14,7 +14,7 @@ export function Ai() {
   const [config, setConfig] = useState<AiConfig | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
-  /** Aba selecionada no formulário — não precisa ser a mesma que está ativa no proxy. */
+  /** Aba selecionada no formulário — não precisa ser a mesma que está ativa. */
   const [tab, setTab] = useState<AiProviderId>("deepseek");
   const [switching, setSwitching] = useState(false);
 
@@ -86,7 +86,7 @@ export function Ai() {
       });
       setConfig(c);
       setApiKey("");
-      setSaveMsg("Salvo em proxy/.env.");
+      setSaveMsg("Salvo.");
     } catch (err) {
       setSaveMsg(err instanceof ApiError ? err.message : String(err));
     } finally {
@@ -94,14 +94,14 @@ export function Ai() {
     }
   }
 
-  /** Sempre testa o provedor ATIVO no proxy (a aba pode estar só em preview). */
+  /** Sempre testa o provedor ATIVO (a aba pode estar só em preview). */
   async function runTest() {
     setTesting(true);
     setTest(null);
     try {
-      const h = await api.health();
-      if (!h.hasKey) {
-        setTest(`Proxy online, mas o provedor ativo (${h.provider ?? "?"}) não tem chave configurada.`);
+      const active = config?.providers[config.provider];
+      if (!active?.hasKey) {
+        setTest(`O provedor ativo (${active?.label ?? "?"}) não tem chave configurada.`);
         return;
       }
       const res = await api.analyze([
@@ -109,7 +109,7 @@ export function Ai() {
       ]);
       setTest(
         res.categorias
-          ? `OK — ${h.provider ?? ""} · ${h.model}. Retorno: ${JSON.stringify(res.categorias[0])}`
+          ? `OK — ${active.label} · ${active.model}. Retorno: ${JSON.stringify(res.categorias[0])}`
           : `Sem categorias. raw: ${res.raw ?? "—"}`,
       );
     } catch (err) {
@@ -197,7 +197,7 @@ export function Ai() {
           </div>
         </div>
         <p className="mt-3 text-xs text-subtle">
-          Gravado em <code>proxy/.env</code>. Não é preciso reiniciar o proxy — o valor é aplicado na hora.
+          Gravado na extensão (chrome.storage.local). O valor é aplicado na hora, sem precisar recarregar.
         </p>
       </Card>
 

@@ -3,7 +3,6 @@ import { CRAWL_MAX_PAGES } from "../constants";
 import { dbAll, dbUpsertMany } from "../db";
 import { itemToRecord, mergeItems } from "../items";
 import { progress } from "../progress";
-import { ensureProxy } from "../proxy";
 import { delay, getActiveOlxTab, injectContent, navigate, pageOf, sameListing, withPage } from "../tabs";
 import type { Card, CrawlOptions, CrawlResult, DbRecord } from "../types";
 import { isCarro } from "../vehicle-filter";
@@ -14,8 +13,6 @@ export async function crawlListing({
   skipKnown,
   saveToDb,
 }: CrawlOptions): Promise<CrawlResult> {
-  await ensureProxy();
-
   const tab = await getActiveOlxTab();
   const tabId = tab.id;
   const baseUrl = tab.url ?? "";

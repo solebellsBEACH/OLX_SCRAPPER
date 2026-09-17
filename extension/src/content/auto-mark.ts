@@ -41,7 +41,7 @@ function autoMarkVisibleCards(): void {
       if (resp?.ok && Array.isArray(resp.marks)) markCards(resp.marks);
     })
     .catch(() => {
-      /* background/proxy fora do ar — tenta de novo na próxima mutação do DOM */
+      /* service worker indisponível — tenta de novo na próxima mutação do DOM */
     });
 }
 

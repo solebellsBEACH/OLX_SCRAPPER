@@ -114,6 +114,10 @@ body.as-tab #app {
   letter-spacing: -0.01em;
 }
 
+.app-head #openPanelBtn {
+  margin-left: auto;
+}
+
 .sub {
   margin: 1px 0 0;
   font-size: 12px;

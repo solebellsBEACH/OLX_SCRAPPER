@@ -2,7 +2,8 @@
 
 > **Status atual:** funcional em ambiente de desenvolvimento (carregado como extensão sem
 > compactação). Listagem + categorização por IA + análise da página do anúncio + persistência
-> em `db.json` estão implementados e testados manualmente.
+> estão implementados e testados manualmente. **Tudo roda dentro da extensão** — sem proxy
+> Node nem dev server separado; ver o histórico de atualizações mais recente abaixo.
 
 Este arquivo é a **fonte da verdade** sobre o projeto. **Toda alteração relevante deve ser
 registrada aqui** (seção [Histórico de atualizações](#histórico-de-atualizações)) explicando o
@@ -18,16 +19,18 @@ painel). Ela:
 
 1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`) — ou **varre
    várias páginas** da paginação de uma vez ("Varrer páginas").
-2. Manda esses dados para o **provedor de IA ativo** (via um **proxy local** que guarda as
-   chaves) e recebe
-   cada anúncio **categorizado**: tipo, marca, modelo, versão, ano, motor, combustível, câmbio,
-   portas, carroceria. **Só carros de passeio ficam** — moto, caminhão, ônibus, van, náutica,
-   etc. são descartados pelo campo `tipo` (não vão para a lista nem para o `db.json`).
+2. Manda esses dados para o **provedor de IA ativo** (DeepSeek ou OpenAI, chamado **direto do
+   service worker da extensão** — sem servidor intermediário) e recebe cada anúncio
+   **categorizado**: tipo, marca, modelo, versão, ano, motor, combustível, câmbio, portas,
+   carroceria. **Só carros de passeio ficam** — moto, caminhão, ônibus, van, náutica, etc. são
+   descartados pelo campo `tipo` (não vão para a lista nem para a base).
 3. Mostra tudo numa **janela separada** da extensão, em **lista paginada (5 por página)**, com
    **seleção por checkbox**.
 4. Para os itens selecionados, **navega a própria aba do OLX** até a página de cada anúncio,
-   **extrai os dados/HTML** da página de detalhe e **grava no arquivo `db.json`** (na raiz do
-   projeto), indexado pelo id do anúncio.
+   **extrai os dados/HTML** da página de detalhe e **grava na base da extensão**
+   (`chrome.storage.local`), indexado pelo id do anúncio.
+5. Um **painel completo** (React), aberto como página da própria extensão a partir do botão
+   "🗂️ Abrir painel" no popup, mostra dashboard, listagem, comparador e configuração da IA.
 
 Todo o log de diagnóstico sai no **console da janela da extensão** (não no console do OLX).
 
@@ -36,34 +39,39 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
 ## Arquitetura
 
 ```
-┌─────────────────────┐        ┌──────────────────────┐        ┌───────────────────┐
-│  Janela da extensão │  msg   │  Service worker      │  HTTP  │  Proxy local      │
-│  (popup.html?tab=1) │ ─────▶ │  (background.ts)     │ ─────▶ │  proxy/server.mjs │
-│  lista + seleção    │ ◀───── │  orquestra tudo      │ ◀───── │  Node, sem deps   │
-└─────────────────────┘        └──────────┬───────────┘        └─────────┬─────────┘
-                                          │ scripting.executeScript      │
-                                          ▼                              ▼
-                                 ┌──────────────────┐          ┌───────────────────┐
-                                 │  content.ts      │          │  DeepSeek API     │
-                                 │  (aba do OLX)    │          │  db.json (raiz)   │
-                                 │  só extrai dados │          └───────────────────┘
-                                 └──────────────────┘
+┌─────────────────────┐        ┌───────────────────────┐        ┌───────────────────┐
+│  Janela da extensão │  msg   │  Service worker       │  fetch │  DeepSeek/OpenAI  │
+│  (popup.html?tab=1) │ ─────▶ │  (background.ts)      │ ─────▶ │  API direta       │
+│  lista + seleção    │ ◀───── │  orquestra tudo       │ ◀───── │                   │
+└─────────────────────┘        └──────────┬────────────┘        └───────────────────┘
+        │ "Abrir painel"                  │ scripting.executeScript
+        ▼                                 ▼
+┌─────────────────────┐        ┌──────────────────────┐
+│  panel/index.html   │  msg   │  content.ts          │
+│  (React, chrome-    │ ─────▶ │  (aba do OLX)        │
+│  extension://...)   │ ◀───── │  só extrai dados     │
+└─────────────────────┘        └──────────────────────┘
+
+chrome.storage.local guarda tudo: a base de anúncios (`olx.db`) e a config/chaves de IA
+(`olx.aiConfig`). Sem servidor local, sem arquivo em disco além do bundle da extensão.
 ```
 
-- **`extension/`** — a extensão. Bundle gerado por webpack em `extension/build/` (é essa pasta
-  que se carrega no Chrome).
-  - `src/manifest.json` — MV3. Permissões: `activeTab`, `scripting`. Hosts: `https://*.olx.com.br/*`
-    (os anúncios ficam em subdomínios regionais, ex. `es.olx.com.br`) e `http://localhost:8787/*`
-    (o proxy). Sem `default_popup` — clicar no ícone abre uma **janela** (`chrome.windows.create`).
+- **`extension/`** — a extensão. Bundle gerado por webpack (+ o painel, por Vite) em
+  `extension/build/` (é essa pasta que se carrega no Chrome).
+  - `src/manifest.json` — MV3. Permissões: `activeTab`, `scripting`, `storage`,
+    `unlimitedStorage`. Hosts: `https://*.olx.com.br/*` (os anúncios ficam em subdomínios
+    regionais, ex. `es.olx.com.br`), `https://api.deepseek.com/*` e `https://api.openai.com/*`.
+    Sem `default_popup` — clicar no ícone abre uma **janela** (`chrome.windows.create`).
   - `src/background.ts`, `src/content.ts`, `src/popup.ts` — **entry points finos** do webpack
     (só um `import "./<pasta>/index"`); a implementação de cada um vive numa pasta de mesmo nome
     ao lado, dividida por responsabilidade (ver abaixo). Isso mantém os três bundles do
     `webpack.config.js` (`background`, `content`, `popup`) intactos.
   - `src/background/` — service worker. Abre a janela (`panel.ts`), orquestra as ações
     (`actions/analyze.ts`, `actions/crawl-listing.ts`, `actions/analyze-selected.ts`,
-    `actions/load-pending.ts`, `actions/auto-scroll.ts`), fala com o proxy (`proxy.ts`,
-    `ai-categorize.ts`), lê/grava o `db.json` (`db.ts`), navega a aba do OLX (`tabs.ts`) e
-    despacha as mensagens do popup (`message-router.ts`).
+    `actions/load-pending.ts`, `actions/auto-scroll.ts`), chama a IA direto
+    (`ai-client.ts`, `ai-config.ts`, `ai-categorize.ts`), lê/grava a base em
+    `chrome.storage.local` (`store.ts`, `db.ts`), navega a aba do OLX (`tabs.ts`) e despacha as
+    mensagens do popup **e do painel** (`message-router.ts`).
   - `src/content/` — injetado sob demanda na aba do OLX. **Não usa `console.*`**; só extrai:
     - `listing-extractor.ts` (`extractSections()`) — cards da listagem (título, preço, preço
       antigo, **km**, **cor**, local, data, imagem, nº de fotos, `details[]`).
@@ -73,28 +81,16 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
     - `scroll.ts` (`scrollAutomatic()`) — scroll suave até o fim (~3 s); progresso via mensagem.
     - `card-marking.ts` / `auto-mark.ts` — borda verde/amarela + score direto nos cards do OLX.
   - `src/popup/` — UI da janela: `dom.ts` (refs dos elementos), `state.ts` (estado mutável
-    compartilhado), `render/` (lista paginada, badges, tabs), `actions/` (um módulo por botão),
-    e **todo o log** (`logging.ts`, `console.table` etc.) no console desta janela.
+    compartilhado), `render/` (lista paginada, badges, tabs), `actions/` (um módulo por botão,
+    incluindo `open-panel.ts` que abre o painel completo numa aba), e **todo o log**
+    (`logging.ts`, `console.table` etc.) no console desta janela.
   - `public/popup.html`, `styles/popup.css` — marcação e estilo (minimalistas).
-- **`proxy/`** — servidor Node (HTTP puro, **sem dependências**, Node ≥ 18.17).
-  - `server.mjs` — guarda a chave DeepSeek e expõe:
-    - `GET  /health` — status + `dbPath`.
-    - `POST /analyze` — recebe `{ sections: [...] }`, chama a DeepSeek em modo JSON e devolve
-      `{ ok, categorias, raw, usage }`.
-    - `GET  /db` — conteúdo de `db.json`.
-    - `POST /db` — `{ id, record }` | `{ records:[...] }` | `{ db:{...} }`; faz **merge por id**,
-      grava `db.json` (escrita atômica via `.tmp` + rename), devolve `{ ok, db }`.
-    - `DELETE /db` — zera `db.json`.
-    - `GET  /img?u=<url>` — baixa a imagem (`https://*.olx.com.br`) no servidor e
-      devolve os bytes. O painel usa isso porque `img.olx.com.br` costuma ser
-      barrado no navegador (adblock / proteção anti-rastreio / DNS).
-  - `.env` — `DEEPSEEK_API_KEY`, `DEEPSEEK_API_URL`, `DEEPSEEK_MODEL`, `PROXY_PORT`.
-    **Não versionado** (`.gitignore`). `.env.example` é o modelo.
-- **`db.json`** (raiz) — o "banco". Mapa `{ [idDoAnuncio]: registro }`. Cada registro tem
-  `id`, `url`, `detail` (dados da página), `categoria` (IA), `htmlLength`, `analyzedAt`,
-  `savedAt`. **Não versionado.**
-- **`setup.sh`** (raiz) — instala deps da extensão, faz o build e **abre 3 terminais**
-  (proxy, `webpack --watch`, painel com health-check). `--no-terminals` para modo headless.
+  - `build/panel/` — build do painel React (`web/`), gerado pelo Vite **direto nessa pasta**
+    (não versionado). Aberto via `chrome.runtime.getURL("panel/index.html")`.
+- **`web/`** — código-fonte do painel (Vite + React + TypeScript). Builda para
+  `extension/build/panel/`, não roda mais como dev server separado (ver "Como rodar").
+- **`setup.sh`** (raiz) — instala deps da extensão e do painel e faz o **build de tudo**, na
+  ordem certa (webpack antes do Vite, porque o webpack limpa `extension/build/`).
 
 ---
 
@@ -102,56 +98,61 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
 
 Pré-requisitos: **Node ≥ 18.17** e **Google Chrome**.
 
+Não tem mais proxy nem dev server: **tudo roda dentro da extensão**. `./setup.sh` builda a
+extensão (webpack) e o painel (Vite) na ordem certa, direto em `extension/build/`.
+
 ### Rápido
 
 ```bash
 ./setup.sh
 ```
 
-Isso instala as deps da **extensão** e do **painel (`web/`)**, faz o build da extensão e abre
-3 terminais: **proxy** (`proxy/ npm start`), **webpack --watch** (`extension/ npm run dev`) e
-**painel Vite** (`web/ npm run dev`, em `http://localhost:5173`, depois de esperar o proxy).
-`./setup.sh --no-terminals` só instala/typecheck (headless/CI). Depois, no Chrome:
+Isso instala as deps da **extensão** e do **painel (`web/`)** e builda os dois, nessa ordem
+(o build do webpack limpa `extension/build/`, então o painel precisa ser buildado depois).
+Ao final:
 
 1. `chrome://extensions`
 2. Ativar **Modo do desenvolvedor**
 3. **Carregar sem compactação** → selecionar `extension/build/`
+4. No popup da extensão, clique em **🗂️ Abrir painel** e configure a chave de IA na aba
+   **IA** (DeepSeek ou OpenAI — fica salva em `chrome.storage.local`, dentro da extensão).
 
 ### Manual
 
 ```bash
-# 1. Proxy (deixe rodando num terminal)
-cd proxy
-cp .env.example .env        # e coloque sua DEEPSEEK_API_KEY
-npm start
-
-# 2. Extensão (noutro terminal)
+# 1. Extensão
 cd extension
 npm install
-npm run build               # ou: npm run dev  (webpack --watch)
+npm run build               # ou: npm run dev  (webpack --watch, pra iterar no background/content/popup)
+
+# 2. Painel — DEPOIS do build da extensão (webpack limpa extension/build/)
+cd web
+npm install
+npm run build                # gera extension/build/panel/
 ```
 
 Carregar `extension/build/` em `chrome://extensions` como acima.
 
-### Painel de análise (`web/`)
+> Iterando no painel: `cd web && npm run dev` sobe um dev server Vite comum
+> (`http://localhost:5173`) pra iterar na UI mais rápido, mas nesse modo `chrome.runtime` não
+> existe (não é uma página da extensão) — as chamadas à API falham. Pra testar de verdade,
+> rode `npm run build` e abra pelo popup.
 
-App **Vite + React + TypeScript** que roda ao lado do proxy e é o **painel de análise** do
-garimpo (a extensão continua sendo só o coletor). Lê tudo pelo proxy (`GET /db`,
-`POST /analyze`, `DELETE /db`, `GET /img?u=` para as fotos).
+### Painel completo (`web/`)
 
-```bash
-cd web
-npm install
-npm run dev          # http://localhost:5173  (proxy precisa estar de pé em :8787)
-```
+App **Vite + React + TypeScript** que builda para `extension/build/panel/` e roda como
+**página da própria extensão** (`chrome-extension://.../panel/index.html`, aberta pelo botão
+"🗂️ Abrir painel" no popup). Fala com o background via `chrome.runtime.sendMessage` — sem
+HTTP, sem proxy (`web/src/lib/api.ts`). Usa `HashRouter` (não `BrowserRouter`) porque uma
+página de extensão não tem servidor pra resolver rotas profundas no F5.
 
 Páginas: **Dashboard** (totais, distribuição por marca/ano, preço médio/mediano, quedas de
-preço, status do proxy), **Listagem** (tabela paginada com ordenação por coluna, filtros
+preço, status da IA), **Listagem** (tabela paginada com ordenação por coluna, filtros
 persistentes na querystring — marca, ano, faixa de preço/km, busca — e seleção múltipla),
 **Detalhe** (`/anuncio/:id`: galeria + dados da IA + properties + descrição, "Reanalisar" e
 "Remover do DB"), **Comparador** (`/comparador?ids=…`: 2 a 4 anúncios lado a lado, opcionais
-em matriz) e **DB / Config** (JSON cru, exportar CSV/JSON, limpar DB, endpoint do proxy
-configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`olx.proxyUrl`).
+em matriz), **IA** (provedor ativo, apiUrl/model/timeout/chave por provedor, testar) e
+**DB / Config** (JSON cru, exportar CSV/JSON, **importar um `db.json` antigo**, limpar DB).
 
 ### Usar
 
@@ -165,15 +166,15 @@ configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`
    atual. O nº efetivo de páginas é `min("até N", páginas que a paginação do OLX mostra, 10)`
    — nunca varre mais que 10 nem além da última página real. Extrai as `section` de cada uma,
    **ignora anúncios repetidos** (mesmo id em outra
-   página) e, se marcado, os que **já estão no `db.json`**, categoriza no DeepSeek em lotes,
-   **grava os novos no `db.json`** (registro raso, sem visitar a página) e devolve a lista
+   página) e, se marcado, os que **já estão na base**, categoriza na IA ativa em lotes,
+   **grava os novos na base** (registro raso, sem visitar a página) e devolve a lista
    acumulada. Para sozinho quando a página não traz nada novo; ao final volta a aba para onde
-   você estava. O painel `web/` mostra os registros já na próxima vez que a aba ganhar foco.
+   você estava. O painel mostra os registros já na próxima vez que a aba ganhar foco.
 4. Marque itens (ou **"selecionar todas (N)"** — pega todas as páginas da lista e ignora os
    já analisados) → **🔎 Analisar selecionados** → a aba do OLX navega por cada anúncio, os
-   dados são extraídos, categorizados e gravados em `db.json`. Anúncio que já tem os dados da
+   dados são extraídos, categorizados e gravados na base. Anúncio que já tem os dados da
    página é **pulado** (badge `✔ analisado`); a aba volta para a listagem no fim.
-5. **🗃️ Ver DB** mostra o `db.json`; **limpar DB** zera.
+5. **🗃️ Ver DB** mostra a base salva; **limpar DB** zera.
 
 > Depois de qualquer mudança no código: `npm run build` (ou deixe o `dev` rodando) **e**
 > recarregue a extensão em `chrome://extensions` (botão ↻) — MV3 não recarrega o service
@@ -186,60 +187,69 @@ configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`
 ```
 OLX_SCRAPPER/
 ├── README.md               ← este arquivo (status + histórico)
-├── setup.sh                ← instala tudo, builda a extensão, abre 3 terminais
-│                             (proxy, webpack --watch, painel Vite)
-├── db.json                 ← "banco" JSON (gerado, não versionado)
-├── proxy/
-│   ├── server.mjs          ← proxy DeepSeek + API do db.json
-│   ├── .env / .env.example ← chave DeepSeek (não versionado)
-│   └── package.json
+├── setup.sh                ← instala tudo, builda extensão + painel (nessa ordem)
+├── db.json                 ← histórico/backup de uma versão anterior (não versionado);
+│                             importável pelo painel em DB/Config, não é mais lido em runtime
 ├── extension/
 │   ├── src/
 │   │   ├── manifest.json
 │   │   ├── background.ts    ← service worker / orquestrador
 │   │   ├── content.ts       ← extração na aba do OLX (sem console)
-│   │   └── popup.ts         ← UI + logs no console da extensão
+│   │   ├── popup.ts         ← UI + logs no console da extensão
+│   │   └── background/
+│   │       ├── store.ts      ← base em chrome.storage.local (substitui db.json)
+│   │       ├── ai-config.ts  ← config/chaves dos provedores de IA (chrome.storage.local)
+│   │       └── ai-client.ts  ← chama DeepSeek/OpenAI direto (substitui proxy/server.mjs)
 │   ├── public/popup.html
 │   ├── styles/popup.css
 │   ├── webpack.config.js
 │   ├── tsconfig.json        ← strict
-│   └── build/               ← bundle (carregar esta pasta no Chrome)
-└── web/                     ← painel de análise (Vite + React + TS)
+│   └── build/               ← bundle final (carregar esta pasta no Chrome)
+│       └── panel/            ← build do web/, gerado pelo Vite (não versionado)
+└── web/                     ← painel completo (Vite + React + TS) — builda pra extension/build/panel/
     ├── index.html
-    ├── vite.config.ts       ← alias @, dev-proxy /proxy → :8787
+    ├── vite.config.ts       ← alias @, base relativo, outDir = ../extension/build/panel
     ├── tailwind.config.js   ← tokens neutros, escala de espaço travada
     └── src/
-        ├── types.ts         ← shape do registro do db.json (fonte única)
+        ├── types.ts         ← shape do registro salvo pela extensão (fonte única)
         ├── lib/
-        │   ├── api.ts       ← camada única que fala com o proxy
+        │   ├── api.ts       ← camada única que fala com o background (chrome.runtime.sendMessage)
         │   ├── rows.ts      ← achata Db → AdRow[] + agregados + oportunidade
         │   ├── format.ts    ← parse/format de preço, km, data
-        │   ├── useDb.ts     ← fetch do /db + /health (loading/vazio/erro)
+        │   ├── useDb.ts     ← lê a base da extensão (loading/vazio/erro) + status da IA
         │   ├── useFilters.ts← filtros ⇄ querystring
         │   └── exporters.ts ← CSV / JSON
         ├── components/
         │   ├── Layout.tsx   ← sidebar + header
         │   ├── data-table/  ← tabela (TanStack) no padrão openstatus
         │   └── ui/          ← button, input, select, badge, checkbox
-        └── pages/           ← Dashboard, Listing, Detail, Compare, Config
+        └── pages/           ← Dashboard, Listing, Detail, Compare, Ai, Config
 ```
 
 ---
 
 ## Decisões de projeto
 
-- **Proxy local em vez de chamar a DeepSeek direto da extensão:** a chave nunca entra no
-  bundle nem trafega pelo navegador. O proxy também é quem escreve em disco (`db.json`) —
-  uma extensão não grava arquivos arbitrários.
-- **`db.json` na raiz, escrito pelo proxy** (não `chrome.storage`): dado fica versionável/
-  inspecionável fora do Chrome, num arquivo único.
+- **Tudo dentro da extensão, sem proxy nem dev server** (mudança de 2026-09-16): a chave de
+  IA fica em `chrome.storage.local`, só acessível pelo próprio perfil do Chrome — nunca sai
+  da máquina do usuário nem trafega por um servidor local. O service worker MV3 pode chamar
+  DeepSeek/OpenAI direto porque `host_permissions` cobre as duas APIs.
+- **`chrome.storage.local` em vez de `db.json`**: elimina a dependência de um processo Node
+  escrevendo em disco. Em troca, o dado não é mais versionável/inspecionável fora do Chrome
+  por padrão — por isso o painel tem exportar **e** importar `db.json` (DB/Config), pra quem
+  quer um backup em arquivo ou está migrando de uma instalação com a versão antiga (proxy).
+- **Painel como página da própria extensão** (`chrome-extension://.../panel/index.html`), não
+  mais um dev server Vite à parte: abre pelo botão do popup, sem precisar de outro processo
+  rodando. Usa `HashRouter` (não `BrowserRouter`) porque não há servidor pra resolver rotas
+  profundas no F5 de uma página de extensão.
 - **Janela separada** (`chrome.windows.create`) em vez de popup de toolbar: não fecha ao
   clicar fora; cabe a lista paginada.
 - **Reutiliza a aba do OLX** nas análises de detalhe (`chrome.tabs.update`), não abre abas
   novas; ao final volta para a listagem.
 - **`content.ts` sem `console.*`:** todo diagnóstico sai no console **da extensão**.
-- **Sem dependências de runtime** (nem na extensão, nem no proxy). Dev deps só o toolchain
-  (webpack, ts-loader, typescript, copy-webpack-plugin).
+- **Sem dependências de runtime na extensão** (só `chrome.storage`/`fetch`, nativos do
+  browser). Dev deps só o toolchain (webpack, ts-loader, typescript, copy-webpack-plugin) e,
+  pro painel, React/Vite/Tailwind.
 
 ---
 
@@ -254,12 +264,56 @@ OLX_SCRAPPER/
 - O recorte "só carros" depende do campo `tipo` que a **IA** infere. Se ela errar o `tipo`
   (ou não devolver), o filtro é permissivo: **sem `tipo` => trata como carro**. A lista de
   tipos não-carro fica em `NAO_CARRO` em `background/constants.ts`.
+- A base agora vive em `chrome.storage.local` (com `unlimitedStorage`), então **desinstalar a
+  extensão apaga os dados** — exporte pelo painel (DB/Config → "db.json cru") antes de
+  desinstalar/trocar de máquina, e reimporte depois pelo botão "Importar db.json".
 
 ---
 
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-09-17
+
+- **Popup ganhou o botão "⬆️ Importar DB"** para carregar um `db.json` exportado (como o da raiz
+  do repo) direto na base da extensão (`chrome.storage.local`). Por quê: o `db.json` antigo
+  (usado quando ainda existia o proxy Node) precisava ser migrado para a base atual da extensão
+  sem passar por servidor nenhum.
+  - `extension/public/popup.html` / `extension/src/popup/dom.ts`: novo `<input type="file">`
+    (`importDbInput`) escondido, disparado pelo botão `importDbBtn`.
+  - `extension/src/popup/actions/db-view.ts`: lê o arquivo escolhido, faz `JSON.parse` e chama
+    a ação `importDb` (já existente em `message-router.ts` → `store.dbImport`), que faz merge
+    por id sem apagar o que já está salvo.
+
+### 2026-09-16 (2)
+
+- **Tudo passou a rodar dentro da extensão** — removidos `proxy/` (servidor Node) e o dev
+  server separado do painel. Por quê: o usuário pediu que a extensão fosse autocontida, sem
+  precisar manter processos externos rodando só pra usá-la.
+  - `extension/src/background/store.ts` (novo) guarda a base em `chrome.storage.local`
+    (`olx.db`), substituindo `db.json` + as rotas `GET/POST/DELETE /db` do proxy.
+  - `extension/src/background/ai-config.ts` (novo) guarda a config/chaves dos provedores de
+    IA (DeepSeek/OpenAI) em `chrome.storage.local` (`olx.aiConfig`), substituindo `proxy/.env`.
+  - `extension/src/background/ai-client.ts` (novo) chama a API do provedor ativo direto do
+    service worker (`fetch`), portando os prompts e o tratamento de erro de
+    `proxy/server.mjs` (`callAi`, `buildPrompt`, `buildComparePrompt`, `buildMetricsPrompt`).
+  - `message-router.ts` ganhou as ações `getAiConfig`, `setAiProvider`,
+    `updateAiProviderConfig`, `aiAnalyze`, `aiCompare`, `aiMetrics`, `importDb`, `removeRecord`
+    — o painel agora fala com o background por `chrome.runtime.sendMessage`, não HTTP.
+  - `manifest.json`: `host_permissions` trocou `http://localhost:8787/*` por
+    `https://api.deepseek.com/*` e `https://api.openai.com/*`; ganhou `storage` e
+    `unlimitedStorage`.
+  - `web/` (painel) builda direto em `extension/build/panel/` (Vite, `base: "./"`) e abre como
+    página da extensão pelo botão "🗂️ Abrir painel" no popup (`extension/src/popup/actions/open-panel.ts`).
+    `web/src/lib/api.ts` e `img.ts` não falam mais HTTP com um proxy; `main.tsx` trocou
+    `createBrowserRouter` por `createHashRouter` (página de extensão não tem servidor pra
+    resolver rotas no F5).
+  - `web/src/pages/Config.tsx` trocou o campo "endpoint do proxy" por um botão "Importar
+    db.json" (merge por id), pra trazer dados de uma instalação com a versão antiga.
+  - `db.json` da raiz **não foi apagado** (fica como backup/histórico) mas deixou de ser lido
+    em runtime; `setup.sh` não abre mais terminais, só instala e builda (webpack → depois
+    Vite, porque o build da extensão limpa `extension/build/`).
 
 ### 2026-09-16
 

@@ -4,11 +4,11 @@ import { getActiveOlxTab, injectContent } from "./tabs";
 import type { Card, Item, ShowIndicatorsResult } from "./types";
 
 /**
- * Consulta rasa (sem IA) do db.json pra um lote de ids — usada pelo content
+ * Consulta rasa (sem IA) da base pra um lote de ids — usada pelo content
  * script assim que a página do OLX abre, pra já pintar borda+score nos cards
  * que já foram analisados antes, sem esperar o clique em "Analisar página".
- * Nunca lança: se o proxy estiver fora do ar, devolve lista vazia (o content
- * script simplesmente não marca nada e tenta de novo na próxima checagem).
+ * Nunca lança: se a leitura falhar, devolve lista vazia (o content script
+ * simplesmente não marca nada e tenta de novo na próxima checagem).
  */
 export async function checkKnown(ids: string[]): Promise<Array<{ id: string; status: "done" | "pending"; score: number | null }>> {
   if (ids.length === 0) return [];

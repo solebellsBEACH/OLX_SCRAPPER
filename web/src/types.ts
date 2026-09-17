@@ -1,4 +1,4 @@
-// Tipos do registro do db.json (a fonte é o proxy: GET /db devolve { [id]: DbRecord }).
+// Tipos do registro salvo pela extensão (chrome.storage.local: { [id]: DbRecord }).
 // Reaproveitados em todo o painel — não duplicar shape em outro lugar.
 
 export interface AdProperty {
@@ -61,18 +61,9 @@ export interface DbRecord {
 /** Mapa como está no arquivo. */
 export type Db = Record<string, DbRecord>;
 
-export interface HealthResponse {
-  ok: boolean;
-  hasKey: boolean;
-  model: string;
-  provider?: AiProviderId;
-  port: number;
-  dbPath: string;
-}
-
 export type AiProviderId = "deepseek" | "openai";
 
-/** Config de um provedor de IA (proxy/.env), com a chave mascarada. */
+/** Config de um provedor de IA (chrome.storage.local da extensão), com a chave mascarada. */
 export interface AiProviderConfig {
   label: string;
   apiUrl: string;

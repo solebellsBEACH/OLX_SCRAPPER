@@ -1,21 +1,21 @@
-import { useState } from "react";
-import { Download, RotateCcw, Trash2 } from "lucide-react";
-import { api, ApiError, getProxyUrl, setProxyUrl } from "@/lib/api";
+import { useRef, useState } from "react";
+import { Download, Trash2, Upload } from "lucide-react";
+import { api, ApiError } from "@/lib/api";
 import { useDb } from "@/lib/useDb";
 import { exportDbJson, exportRowsCsv, exportRowsJson } from "@/lib/exporters";
 import { PageHeader } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ErrorBox, Loading } from "@/components/States";
 
 export function Config() {
   const { db, rows, status, error, refetch } = useDb();
-  const [url, setUrl] = useState(getProxyUrl());
   const [msg, setMsg] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function clear() {
-    if (!confirm("Zerar o db.json inteiro? Não dá pra desfazer.")) return;
+    if (!confirm("Zerar a base inteira? Não dá pra desfazer.")) return;
     setClearing(true);
     try {
       await api.clearDb();
@@ -27,43 +27,49 @@ export function Config() {
     }
   }
 
+  async function importFile(file: File) {
+    setImporting(true);
+    setMsg(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== "object") throw new Error("Arquivo não é um JSON de objeto");
+      await api.importDb(parsed);
+      refetch();
+      setMsg(`Importado: ${Object.keys(parsed).length} registro(s) mesclados.`);
+    } catch (err) {
+      setMsg(err instanceof ApiError ? err.message : `Falha ao importar: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
   if (status === "loading") return <Loading />;
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="DB / Config" />
 
-      <Card title="Endpoint do proxy">
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="http://localhost:8787"
-            className="w-[280px]"
-          />
-          <Button
-            size="md"
-            onClick={() => {
-              setProxyUrl(url);
-              refetch();
-            }}
-          >
-            Salvar
-          </Button>
-          <Button
-            size="md"
-            variant="ghost"
-            onClick={() => {
-              setProxyUrl("");
-              setUrl("http://localhost:8787");
-              refetch();
-            }}
-          >
-            <RotateCcw className="h-3 w-3" />
-            Padrão
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-subtle">Guardado em localStorage (olx.proxyUrl).</p>
+      <Card title="Importar db.json">
+        <p className="mb-2 text-xs text-subtle">
+          Traz os registros de um db.json exportado (ex.: da versão anterior com proxy local) pra dentro da extensão. Faz
+          merge por id — não apaga o que já existe.
+        </p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void importFile(file);
+          }}
+        />
+        <Button size="md" onClick={() => fileRef.current?.click()} disabled={importing}>
+          <Upload className="h-3 w-3" />
+          {importing ? "Importando…" : "Selecionar arquivo"}
+        </Button>
       </Card>
 
       {msg && (

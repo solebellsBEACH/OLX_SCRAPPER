@@ -1,4 +1,4 @@
-import { PROXY_URL } from "./constants";
+import { analyzeSections } from "./ai-client";
 import { progress } from "./progress";
 import type { Card, Categoria } from "./types";
 
@@ -6,43 +6,20 @@ export async function categorize(
   sections: unknown[],
   label?: string,
 ): Promise<{ categorias: unknown[] | null; raw: string | null; error?: string }> {
+  progress(`${label ?? `Analisando ${sections.length} anúncio(s)`} · aguardando IA (alguns minutos por lote)...`);
   try {
-    progress(`${label ?? `Analisando ${sections.length} anúncio(s)`} · aguardando IA (alguns minutos por lote)...`);
-    const response = await fetch(PROXY_URL, {
-      signal: AbortSignal.timeout(310_000),
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sections }),
-    });
-    const data = (await response.json().catch((err) => {
-      if (err.name === "TimeoutError" || err.name === "AbortError") throw err;
-      return {};
-    })) as {
-      ok?: boolean;
-      categorias?: unknown[] | null;
-      raw?: string | null;
-      error?: string;
-    };
-    if (!response.ok || !data.ok) {
-      return { categorias: null, raw: null, error: data.error ?? `Proxy HTTP ${response.status}` };
-    }
-    return {
-      categorias: Array.isArray(data.categorias) ? data.categorias : null,
-      raw: data.raw ?? null,
-    };
+    const { categorias, raw } = await analyzeSections(sections as Parameters<typeof analyzeSections>[0]);
+    return { categorias, raw };
   } catch (err) {
-    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
-      return { categorias: null, raw: null, error: "A análise excedeu o tempo de espera. Tente novamente com menos anúncios por vez." };
-    }
     const msg = err instanceof Error ? err.message : String(err);
-    return { categorias: null, raw: null, error: `Proxy inacessível (${msg}). Rode: cd proxy && npm start` };
+    return { categorias: null, raw: null, error: msg };
   }
 }
 
 /**
  * Categoriza em lotes para não estourar o prompt / o JSON de resposta quando a
- * varredura junta muitas páginas. Cada card já leva `index` global; o proxy pede
- * ao modelo para manter esse index, então basta concatenar os retornos.
+ * varredura junta muitas páginas. Cada card já leva `index` global; a IA é
+ * pedida para manter esse index, então basta concatenar os retornos.
  */
 export async function categorizeInChunks(
   cards: Card[],

@@ -1,5 +1,5 @@
 import { isDeepAnalyzed } from "../../background/items";
-import { clearDbBtn, dbDumpEl, viewDbBtn } from "../dom";
+import { clearDbBtn, dbDumpEl, importDbBtn, importDbInput, viewDbBtn } from "../dom";
 import { send } from "../messaging";
 import { renderPage } from "../render/list";
 import { state } from "../state";
@@ -25,6 +25,29 @@ export function registerDbViewActions(): void {
       const response = await send("getDb");
       dbDumpEl.textContent = JSON.stringify(response.db ?? {}, null, 2);
       dbDumpEl.hidden = false;
+    })();
+  });
+
+  importDbBtn.addEventListener("click", () => {
+    importDbInput.click();
+  });
+
+  importDbInput.addEventListener("change", () => {
+    void (async () => {
+      const file = importDbInput.files?.[0];
+      importDbInput.value = "";
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const db = JSON.parse(text) as Record<string, unknown>;
+        const response = await send("importDb", { db });
+        const count = Object.keys(response.db ?? {}).length;
+        await refreshDbFlags();
+        renderPage();
+        setStatus(`⬆️ DB importado: ${count} registros.`);
+      } catch (err) {
+        setStatus(`❌ Falha ao importar: ${(err as Error).message}`);
+      }
     })();
   });
 

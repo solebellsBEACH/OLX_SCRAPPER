@@ -3,7 +3,10 @@ import { analyzeSelected } from "./actions/analyze-selected";
 import { autoScroll } from "./actions/auto-scroll";
 import { crawlListing } from "./actions/crawl-listing";
 import { loadPending } from "./actions/load-pending";
+import * as aiConfig from "./ai-config";
+import * as aiClient from "./ai-client";
 import { dbAll, dbClear } from "./db";
+import { dbImport, dbRemove } from "./store";
 import { checkKnown, hideIndicators, showIndicators } from "./indicators";
 import type { InMessage } from "./types";
 
@@ -41,6 +44,31 @@ export function registerMessageRouter(): void {
         case "clearDb":
           await dbClear();
           return { ok: true, db: {} };
+        case "importDb":
+          return { ok: true, db: await dbImport(message.db ?? {}) };
+        case "removeRecord":
+          if (!message.id) return { ok: false, error: "id ausente" };
+          return { ok: true, db: await dbRemove(message.id) };
+        case "getAiConfig":
+          return { ok: true, config: await aiConfig.getConfig() };
+        case "setAiProvider":
+          if (!message.provider) return { ok: false, error: "provider ausente" };
+          return { ok: true, config: await aiConfig.setActiveProvider(message.provider) };
+        case "updateAiProviderConfig":
+          if (!message.provider) return { ok: false, error: "provider ausente" };
+          return { ok: true, config: await aiConfig.updateProviderConfig(message.provider, message.patch ?? {}) };
+        case "aiAnalyze": {
+          const { categorias, raw, usage } = await aiClient.analyzeSections((message.sections ?? []) as never);
+          return { ok: true, categorias, raw, usage };
+        }
+        case "aiCompare": {
+          const { ranking, raw } = await aiClient.compareCars((message.cars ?? []) as never);
+          return { ok: true, ranking, raw };
+        }
+        case "aiMetrics": {
+          const { metrics, raw } = await aiClient.carMetrics((message.cars ?? []) as never);
+          return { ok: true, metrics, raw };
+        }
         default:
           return { ok: false, error: `Ação desconhecida: ${String((message as { action?: string }).action)}` };
       }

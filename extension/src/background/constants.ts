@@ -1,9 +1,6 @@
 export const OLX_URL_RE = /^https:\/\/([a-z0-9-]+\.)*olx\.com\.br\//i;
 /** A extensão só age em páginas da categoria de carros do OLX. */
 export const OLX_CARROS_RE = /olx\.com\.br\/[^?#]*carros-vans-e-utilitarios/i;
-export const PROXY_BASE = "http://localhost:8787";
-export const PROXY_URL = `${PROXY_BASE}/analyze`;
-export const DB_URL = `${PROXY_BASE}/db`;
 export const PANEL_PATH = "popup.html?tab=1";
 
 /** Teto rígido de páginas por varredura, independente do que o usuário pedir. */

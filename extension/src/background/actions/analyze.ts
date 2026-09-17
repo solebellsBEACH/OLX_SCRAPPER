@@ -3,14 +3,12 @@ import { dbAll, dbUpsertMany } from "../db";
 import { markCardsOnPage } from "../indicators";
 import { itemToRecord, mergeItems } from "../items";
 import { progress } from "../progress";
-import { ensureProxy } from "../proxy";
 import { backfillScores } from "../scores";
 import { getActiveOlxTab, injectContent } from "../tabs";
 import type { AnalyzeResult, Card, DbRecord } from "../types";
 import { isCarro } from "../vehicle-filter";
 
 export async function analyze(): Promise<AnalyzeResult> {
-  await ensureProxy();
   const tab = await getActiveOlxTab();
   await injectContent(tab.id);
 
