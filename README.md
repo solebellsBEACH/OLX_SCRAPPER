@@ -287,10 +287,15 @@ OLX_SCRAPPER/
   ausente do disco, `content_security_policy` tiver `unsafe-eval`, os bundles usarem
   `eval()`/`new Function()`/`importScripts()` remoto/`document.write()` (proibidos no
   Manifest V3), ou houver padrão de chave de API (OpenAI/DeepSeek `sk-...`, Google `AIza...`)
-  hardcoded no bundle — chave deve vir do usuário via `chrome.storage`, nunca embutida. Novo
-  workflow `.github/workflows/extension-validate.yml`: em toda mudança em `extension/**`
-  (push/PR), roda `typecheck` → `build` → `validate:store` no CI, pra pegar regressão de
-  compliance antes de gerar o pacote pra loja.
+  hardcoded no bundle — chave deve vir do usuário via `chrome.storage`, nunca embutida. Também
+  passou a checar `build/panel/index.html` (o painel React, buildado por `web/` via Vite):
+  como o build da extensão (webpack, `clean: true`) apaga `extension/build/` inteiro, buildar só
+  `extension/` sem buildar `web/` **depois** derruba o painel ("Abrir painel" quebra em
+  produção com `ERR_FILE_NOT_FOUND`) — foi o que aconteceu ao rodar `npm run build` isolado na
+  extensão; corrigido rebuildando `web/` na ordem certa (ver `setup.sh`). Novo workflow
+  `.github/workflows/extension-validate.yml`: em toda mudança em `extension/**` ou `web/**`
+  (push/PR), builda extensão → builda painel **nessa ordem** → `validate:store`, pra pegar essa
+  e outras regressões de compliance antes de gerar o pacote pra loja.
 - **Botão "⚡ Análise rápida" — score sem IA, só com os dados do card.** Pedido: varrer os
   carros da página e dar um score usando só o que já está no componente do card (o
   `<section class="olx-adcard">`), sem chamar a IA. Novo `background/quick-score.ts`

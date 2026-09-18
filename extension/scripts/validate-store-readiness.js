@@ -65,6 +65,20 @@ if (!manifest.action || !manifest.action.default_icon) {
   warn('action.default_icon ausente — a toolbar usará um ícone genérico.');
 }
 
+// --- Painel (React/Vite) precisa existir dentro do build da extensão ---
+// O painel é buildado por um projeto separado (web/, via Vite) direto em
+// extension/build/panel/. Como o build da extensão (webpack) limpa build/
+// inteiro antes de gerar seus próprios arquivos, o painel precisa ser
+// buildado DEPOIS (ver setup.sh) — se faltar aqui, "Abrir painel" quebra.
+const panelIndex = path.join(BUILD_DIR, "panel", "index.html");
+if (!fs.existsSync(panelIndex)) {
+  fail(
+    "build/panel/index.html não encontrado. O painel (web/) precisa ser buildado DEPOIS do " +
+      'build da extensão (webpack limpa build/ inteiro). Rode "./setup.sh" ou build extension/ ' +
+      "e depois web/ nessa ordem."
+  );
+}
+
 // --- CSP / código remoto ---
 const csp = manifest.content_security_policy;
 if (csp && JSON.stringify(csp).includes("unsafe-eval")) {
