@@ -43,5 +43,5 @@ echo "==> Pronto. Tudo roda dentro da extensão — nenhum servidor local é nec
 echo "    1. chrome://extensions"
 echo "    2. Ative o 'Modo do desenvolvedor'"
 echo "    3. 'Carregar sem compactação' -> $BUILD_DIR"
-echo "    4. Configure a chave de IA no painel (aba 'IA') antes de analisar anúncios."
+echo "    4. Cadastre um provedor de IA no painel (aba 'Config') antes de analisar anúncios."
 echo "    5. Abra o painel completo pelo botão no popup da extensão."
