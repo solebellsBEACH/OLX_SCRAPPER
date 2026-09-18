@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "webpack --mode development --watch",
     "build": "webpack --mode production",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate:store": "node scripts/validate-store-readiness.js"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",

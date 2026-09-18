@@ -3,6 +3,12 @@
   "name": "OLX Workspace",
   "version": "1.0.0",
   "description": "Análise de anúncios OLX com IA",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
   "host_permissions": ["https://*.olx.com.br/*", "https://api.deepseek.com/*", "https://api.openai.com/*"],
   "background": { "service_worker": "background.js" },
@@ -14,7 +20,13 @@
     }
   ],
   "action": {
-    "default_title": "OLX Workspace"
+    "default_title": "OLX Workspace",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "options_ui": {
     "page": "popup.html?tab=1",

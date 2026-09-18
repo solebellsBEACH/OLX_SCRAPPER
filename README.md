@@ -277,6 +277,20 @@ OLX_SCRAPPER/
 
 ### 2026-09-18
 
+- **Preparação para publicação na Chrome Web Store.** Pedido: publicar a extensão na loja.
+  Adicionados ícones (`extension/src/icons/icon{16,32,48,128}.png`, gerados a partir de
+  `logo.png` na raiz — versão final sem o logotipo "OLX", pra evitar rejeição por uso de marca
+  de terceiro) referenciados em `manifest.json` (`icons` e
+  `action.default_icon`) e copiados no build pelo `webpack.config.js`. Criado
+  `extension/scripts/validate-store-readiness.js` (`npm run validate:store`), que roda contra
+  `extension/build/` e falha se: `manifest_version` não for 3, faltar `icons`/ícone declarado
+  ausente do disco, `content_security_policy` tiver `unsafe-eval`, os bundles usarem
+  `eval()`/`new Function()`/`importScripts()` remoto/`document.write()` (proibidos no
+  Manifest V3), ou houver padrão de chave de API (OpenAI/DeepSeek `sk-...`, Google `AIza...`)
+  hardcoded no bundle — chave deve vir do usuário via `chrome.storage`, nunca embutida. Novo
+  workflow `.github/workflows/extension-validate.yml`: em toda mudança em `extension/**`
+  (push/PR), roda `typecheck` → `build` → `validate:store` no CI, pra pegar regressão de
+  compliance antes de gerar o pacote pra loja.
 - **Botão "⚡ Análise rápida" — score sem IA, só com os dados do card.** Pedido: varrer os
   carros da página e dar um score usando só o que já está no componente do card (o
   `<section class="olx-adcard">`), sem chamar a IA. Novo `background/quick-score.ts`
