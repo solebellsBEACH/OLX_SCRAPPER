@@ -61,10 +61,25 @@ export interface DbRecord {
 /** Mapa como está no arquivo. */
 export type Db = Record<string, DbRecord>;
 
-export type AiProviderId = "deepseek" | "openai";
+export interface AiModelOption {
+  id: string;
+  label: string;
+}
 
-/** Config de um provedor de IA (chrome.storage.local da extensão), com a chave mascarada. */
-export interface AiProviderConfig {
+/** Provedor conhecido (catálogo vindo do background). `models` vazio = modelo digitado à mão. */
+export interface AiPreset {
+  id: string;
+  label: string;
+  apiUrl: string;
+  models: AiModelOption[];
+  keyPlaceholder: string;
+  keyUrl?: string;
+}
+
+/** Provedor de IA cadastrado (chrome.storage.local da extensão), com a chave mascarada. */
+export interface AiProvider {
+  id: string;
+  presetId: string;
   label: string;
   apiUrl: string;
   model: string;
@@ -73,10 +88,22 @@ export interface AiProviderConfig {
   keyPreview: string | null;
 }
 
-/** Config atual da IA: provedor ativo + configuração de cada provedor suportado. */
+/** Config atual da IA: provedores cadastrados, o ativo e o catálogo de presets. */
 export interface AiConfig {
-  provider: AiProviderId;
-  providers: Record<AiProviderId, AiProviderConfig>;
+  activeId: string | null;
+  providers: AiProvider[];
+  presets: AiPreset[];
+}
+
+/** Dados do formulário de provedor. Sem `id` = novo. `apiKey` vazio mantém a atual. */
+export interface AiProviderInput {
+  id?: string;
+  presetId?: string;
+  label?: string;
+  apiUrl?: string;
+  model?: string;
+  timeoutMs?: number;
+  apiKey?: string;
 }
 
 /** Um item do ranking devolvido por POST /compare (do melhor pro pior). */

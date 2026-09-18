@@ -104,8 +104,8 @@ function AlertList({ alerts }: { alerts: VehicleAlert[] }) {
             className={cn(
               "flex items-start gap-2 border p-2 text-sm",
               a.severity === "danger"
-                ? "border-[#f2c9c9] bg-[#fdf1f1] text-danger"
-                : "border-[#f2dcae] bg-[#fdf7ec] text-warn",
+                ? "border-danger-border bg-danger-bg text-danger"
+                : "border-warn-border bg-warn-bg text-warn",
             )}
           >
             {a.severity === "danger" ? (
@@ -134,7 +134,7 @@ function SignalList({ signals }: { signals: VehicleSignal[] }) {
         {signals.map((s, i) => (
           <li
             key={`${s.type}-${i}`}
-            className="flex items-start gap-2 border border-[#bbe7c6] bg-[#f2f8f3] p-2 text-sm text-ok"
+            className="flex items-start gap-2 border border-ok-border bg-ok-bg p-2 text-sm text-ok"
           >
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <span>

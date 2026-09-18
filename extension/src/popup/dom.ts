@@ -62,6 +62,7 @@ export const cancelBtn = $<HTMLButtonElement>("cancelBtn");
 export const cancelAdvBtn = $<HTMLButtonElement>("cancelAdvBtn");
 export const tabConfigBtn = $<HTMLButtonElement>("tabConfigBtn");
 export const panelConfig = $<HTMLElement>("panelConfig");
+export const aiMissingToast = $<HTMLButtonElement>("aiMissingToast");
 export const pendingToast = $<HTMLButtonElement>("pendingToast");
 export const pendingToastText = $<HTMLSpanElement>("pendingToastText");
 export const pendingDialog = $<HTMLDialogElement>("pendingDialog");

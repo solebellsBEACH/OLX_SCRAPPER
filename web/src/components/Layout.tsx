@@ -1,25 +1,28 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, Table2, GitCompareArrows, Database, BrainCircuit } from "lucide-react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { LayoutDashboard, Table2, GitCompareArrows, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useOnboarding } from "@/lib/useOnboarding";
 import { ProxyStatus } from "./ProxyStatus";
 import { Breadcrumb, BreadcrumbProvider } from "./common/Breadcrumb";
 import { HelpButton } from "./common/HelpButton";
 import { Onboarding } from "./common/Onboarding";
+import { AiMissingBanner } from "./AiMissingBanner";
+import { ThemeToggle } from "./ThemeToggle";
+import { LearningToggle } from "./learning/Learn";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/listagem", label: "Listagem", icon: Table2, end: false },
   { to: "/comparador", label: "Comparador", icon: GitCompareArrows, end: false },
-  { to: "/ia", label: "IA", icon: BrainCircuit, end: false },
-  { to: "/db", label: "DB / Config", icon: Database, end: false },
+  { to: "/db", label: "Config", icon: Settings, end: false },
 ];
 
 export function Layout() {
+  const { pathname } = useLocation();
   const onboarding = useOnboarding();
   return (
     <div className="grid min-h-screen md:grid-cols-[184px_1fr]">
-      <aside className="flex flex-col gap-2 border-b border-border bg-surface px-3 py-2 md:gap-6 md:border-b-0 md:border-r md:py-4">
+      <aside className="animate-slide-in-left flex flex-col gap-2 border-b border-border bg-surface px-3 py-2 md:sticky md:top-0 md:h-screen md:gap-6 md:overflow-y-auto md:border-b-0 md:border-r md:py-4">
         <div className="hidden md:block">
           <p className="text-sm font-semibold">OLX Workspace</p>
           <p className="text-xs text-muted">Painel de análise</p>
@@ -43,15 +46,22 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <ProxyStatus className="hidden md:mt-auto md:flex" />
+        <div className="flex flex-col gap-2 md:mt-auto">
+          <LearningToggle />
+          <ThemeToggle />
+          <ProxyStatus className="hidden md:flex" />
+        </div>
       </aside>
 
       <main className="min-w-0 px-4 py-4 md:px-8 md:py-6">
+        <AiMissingBanner />
         <BreadcrumbProvider>
           {(suffix) => (
             <>
               <Breadcrumb suffix={suffix} />
-              <Outlet />
+              <div key={pathname} className="animate-fade-in">
+                <Outlet />
+              </div>
             </>
           )}
         </BreadcrumbProvider>

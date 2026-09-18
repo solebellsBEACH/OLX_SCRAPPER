@@ -6,6 +6,8 @@ import { exportDbJson, exportRowsCsv, exportRowsJson } from "@/lib/exporters";
 import { PageHeader } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { ErrorBox, Loading } from "@/components/States";
+import { LearnPage } from "@/components/learning/Learn";
+import { AiProviders } from "@/components/config/AiProviders";
 
 export function Config() {
   const { db, rows, status, error, refetch } = useDb();
@@ -49,7 +51,22 @@ export function Config() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="DB / Config" />
+      <PageHeader title="Config" />
+
+      <LearnPage
+        title="Config"
+        what="Onde você liga a IA (obrigatória para analisar anúncios) e cuida da base de dados da extensão."
+        can={[
+          "Cadastrar vários provedores de IA, escolher o modelo de cada um e definir qual está ativo.",
+          "Testar a IA ativa com um anúncio de exemplo.",
+          "Importar um db.json antigo (junta por id, sem apagar o que já existe).",
+          "Exportar a base em CSV, JSON de linhas ou o db.json cru.",
+          "Limpar a base inteira (zona de perigo, sem volta).",
+        ]}
+        read="As chaves de API ficam só no armazenamento local da extensão e são enviadas apenas ao provedor escolhido. O timeout é quanto tempo esperar a resposta da IA antes de desistir."
+      />
+
+      <AiProviders />
 
       <Card title="Importar db.json">
         <p className="mb-2 text-xs text-subtle">

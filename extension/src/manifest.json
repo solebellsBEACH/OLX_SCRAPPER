@@ -10,7 +10,17 @@
     "128": "icons/icon128.png"
   },
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage"],
-  "host_permissions": ["https://*.olx.com.br/*", "https://api.deepseek.com/*", "https://api.openai.com/*"],
+  "host_permissions": [
+    "https://*.olx.com.br/*",
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.groq.com/*",
+    "https://api.mistral.ai/*",
+    "https://api.x.ai/*",
+    "https://openrouter.ai/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
   "background": { "service_worker": "background.js" },
   "content_scripts": [
     {

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { Link } from "react-router-dom";
 import type { AdRow, VehicleAlert } from "@/types";
 import { useDb } from "@/lib/useDb";
@@ -116,13 +117,24 @@ export function Dashboard() {
         <ProxyStatus />
       </PageHeader>
 
+      <LearnPage
+        title="Dashboard"
+        what="Visão geral da sua base: resume todos os anúncios já analisados e destaca onde estão as melhores chances e o que precisa de cuidado."
+        can={[
+          "Ler os números-resumo no topo para saber o tamanho e o preço típico da base.",
+          "Clicar em qualquer carro das listas para abrir a análise completa dele.",
+          "Ir à Listagem para filtrar, ordenar e comparar todos os anúncios.",
+        ]}
+        read="Os dados vêm da extensão: cada anúncio analisado é gravado na base e comparado com outros da mesma marca, modelo e ano. Nada aqui é recomendação de compra — é apoio para decidir."
+      />
+
       {status === "empty" ? (
         <Empty />
       ) : (
         <>
           {/* 1. Resumo */}
           <section className="flex flex-col gap-2">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <SummaryCard label="Veículos analisados" value={formatNumber(stats.total)} hint="na base atual" />
               <SummaryCard
                 label="Preço típico"
@@ -150,6 +162,13 @@ export function Dashboard() {
                 hint="dos anúncios com comparação disponível"
               />
             </div>
+            <LearnNote title="O que cada número significa">
+              <p><strong>Veículos analisados:</strong> total de anúncios na base.</p>
+              <p><strong>Preço típico:</strong> a <em>mediana</em> (o valor do meio), que sofre menos com anúncios muito caros ou muito baratos do que a média.</p>
+              <p><strong>Boas oportunidades:</strong> anúncios com oportunidade "Boa" ou "Excelente" (nota 70 ou mais de 100).</p>
+              <p><strong>Pontos para verificar:</strong> anúncios com algum alerta relevante (preço fora do padrão, km suspeita etc.). Não é acusação, só um convite a checar.</p>
+              <p><strong>Comparação de mercado:</strong> % de anúncios que têm ao menos 2 outros da mesma marca, modelo e ano para servir de referência.</p>
+            </LearnNote>
             <p className="text-xs text-subtle">
               Alguns anúncios possuem poucos veículos semelhantes para comparação. Nesses casos, a análise de preço é
               limitada.
@@ -161,10 +180,13 @@ export function Dashboard() {
             title="Melhores oportunidades"
             caption="Veículos que se destacam pelos dados disponíveis — não é uma recomendação de compra."
           >
+            <LearnNote className="mb-3" title="Como esta lista é montada">
+              <p>Entram carros com oportunidade <strong>Boa ou Excelente</strong>, preço e comparação de mercado disponíveis e <strong>no máximo 1 ponto de atenção</strong> — assim um preço ótimo não esconde vários problemas. Ordenados pela nota (até 8 carros).</p>
+            </LearnNote>
             {bestOpportunities.length === 0 ? (
               <EmptyNote text="Nenhum anúncio se destacou nesse critério ainda." />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {bestOpportunities.map((r) => (
                   <VehicleMiniCard key={r.id} row={r}>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -182,10 +204,13 @@ export function Dashboard() {
 
           {/* 3. Abaixo do preço esperado */}
           <Section title="Abaixo do preço esperado" caption="Anúncios com preço bem abaixo da média de similares.">
+            <LearnNote className="mb-3" title="Como esta lista é montada">
+              <p>Carros com preço <strong>10% ou mais abaixo</strong> da média dos similares (mesma marca, modelo e ano). Se estiver <strong>25% ou mais</strong> abaixo, aparece como "muito abaixo do padrão — verificar": preço bom demais pode indicar problema, golpe ou erro do anúncio.</p>
+            </LearnNote>
             {belowMarket.length === 0 ? (
               <EmptyNote text="Ainda não há veículos suficientes para essa comparação." />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {belowMarket.map((r) => {
                   const extreme = r.analysis.alerts.some((a) => a.type === "price_far_below_market");
                   return (
@@ -209,10 +234,13 @@ export function Dashboard() {
 
           {/* 4. Pontos para verificar */}
           <Section title="Pontos para verificar" caption="Dados que merecem uma checagem antes de decidir — não são acusações.">
+            <LearnNote className="mb-3" title="O que são estes pontos">
+              <p>Alertas gerados automaticamente: preço muito fora do mercado, poucos anúncios para comparar, quilometragem incomum para a idade (possível odômetro adulterado). Alertas <strong>informativos</strong> (ex.: "boa condição estimada") não entram aqui. Vale conferir com o vendedor.</p>
+            </LearnNote>
             {toVerify.length === 0 ? (
               <EmptyNote text="Nenhum ponto relevante para verificar no momento." />
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {toVerify.map((r) => {
                   const relevant = r.analysis.alerts.filter(isRelevantAlert);
                   const [first, ...rest] = relevant;
@@ -240,6 +268,9 @@ export function Dashboard() {
 
           {/* 5. Explorar o mercado (analítico, demotido) */}
           <Section title="Explorar o mercado" caption="Visão agregada da base — informação secundária pra apoiar a decisão.">
+            <LearnNote className="mb-3" title="Visão agregada">
+              <p>Mostra como a base se distribui por marca e por ano, e quantos anúncios tiveram <strong>queda de preço</strong> (preço atual menor que o anterior). Serve para entender de onde vêm os dados, não para decidir sozinho.</p>
+            </LearnNote>
             <div className="mb-4 flex flex-wrap gap-4 text-xs text-muted">
               <span>
                 Anúncios com preço: <strong className="text-fg tnum">{formatNumber(stats.withPrice)}</strong>
@@ -313,7 +344,7 @@ function VehicleMiniCard({ row, children }: { row: AdRow; children: React.ReactN
   return (
     <Link
       to={`/anuncio/${row.id}`}
-      className="flex flex-col gap-1.5 border border-border bg-surface p-3 transition-colors duration-DEFAULT hover:border-accent"
+      className="lift flex flex-col gap-1.5 border border-border bg-surface p-3 hover:border-accent"
     >
       <p className="truncate text-sm font-semibold" title={titleFor(row)}>
         {titleFor(row)}

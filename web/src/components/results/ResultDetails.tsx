@@ -4,6 +4,7 @@ import type { AdRow } from "@/types";
 import { formatBRL, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { HELP, HelpTip } from "@/components/ui/tooltip";
+import { LearnNote } from "@/components/learning/Learn";
 import { opportunityPhrase } from "./StatusBadge";
 
 function Item({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
@@ -24,6 +25,11 @@ export function ResultDetails({ row }: { row: AdRow }) {
   const props = row.record.detail?.properties ?? [];
   return (
     <div className="flex animate-fade-in flex-col gap-4 motion-reduce:animate-none">
+      <LearnNote title="Detalhes do anúncio">
+        <p><strong>Oportunidade</strong> é uma nota de 0 a 100 baseada principalmente no preço frente ao mercado, com ajustes pela condição estimada pela IA e pela quilometragem.</p>
+        <p><strong>Mercado</strong> é o preço médio de outros anúncios da mesma marca, modelo e ano, e quantos anúncios entraram na conta. Com menos de 2 outros, não há comparação.</p>
+        <p><strong>Alertas</strong> são pontos a conferir antes de decidir. <strong>Salvo em</strong> é quando o anúncio entrou na sua base.</p>
+      </LearnNote>
       <dl className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
         <Item label="Oportunidade" help={HELP.oportunidade}>
           {opportunityPhrase(a)}

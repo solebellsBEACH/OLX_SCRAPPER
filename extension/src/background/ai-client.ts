@@ -1,7 +1,8 @@
-// Porta a lógica de proxy/server.mjs: chama DeepSeek/OpenAI direto do background
+// Porta a lógica de proxy/server.mjs: chama o provedor de IA ativo direto do background
 // da extensão (mesmo formato "chat/completions" da OpenAI para os dois).
 
 import { activeProviderConfig } from "./ai-config";
+import { CUSTOM_PRESET_ID } from "./ai-presets";
 import { cancelSignal } from "./cancel";
 
 interface AiSection {
@@ -171,9 +172,13 @@ export class AiError extends Error {
 }
 
 async function callAi(messages: Array<{ role: string; content: string }>): Promise<{ content: string; usage: unknown }> {
-  const { def, cfg } = await activeProviderConfig();
-  if (!cfg.apiKey) {
-    throw new AiError(`Chave da ${def.label} não configurada. Adicione em Config → Chaves de IA.`, 500);
+  const cfg = await activeProviderConfig();
+  if (!cfg) {
+    throw new AiError("Nenhuma IA configurada. Adicione um provedor em Painel → Config → Provedores de IA.", 500, "AI_NOT_CONFIGURED");
+  }
+  const def = { label: cfg.label };
+  if (!cfg.apiKey && cfg.presetId !== CUSTOM_PRESET_ID) {
+    throw new AiError(`Chave da ${def.label} não configurada. Adicione em Painel → Config → Provedores de IA.`, 500, "AI_NOT_CONFIGURED");
   }
 
   let upstream: Response;
@@ -183,7 +188,7 @@ async function callAi(messages: Array<{ role: string; content: string }>): Promi
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${cfg.apiKey}`,
+        ...(cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {}),
       },
       body: JSON.stringify({
         model: cfg.model,
@@ -212,7 +217,7 @@ async function callAi(messages: Array<{ role: string; content: string }>): Promi
 
   if (!upstream.ok) {
     const byStatus: Record<number, string> = {
-      401: `Chave da ${def.label} inválida. Confira em Config → Chaves de IA e tente de novo.`,
+      401: `Chave da ${def.label} inválida. Confira em Config → Provedores de IA e tente de novo.`,
       402: `Saldo insuficiente na ${def.label}. Recarregue a conta para continuar.`,
       403: `Acesso à ${def.label} negado. Confira as permissões da sua chave.`,
       429: `A ${def.label} recebeu muitas solicitações. Aguarde um pouco e tente novamente.`,

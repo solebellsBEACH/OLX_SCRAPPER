@@ -86,7 +86,7 @@ export interface InMessage {
     | "removeRecord"
     | "getAiConfig"
     | "setAiProvider"
-    | "updateAiProviderConfig"
+    | "saveAiProvider" | "removeAiProvider"
     | "aiAnalyze"
     | "aiCompare"
     | "aiMetrics"
@@ -106,10 +106,18 @@ export interface InMessage {
   db?: Record<string, DbRecord>;
   /** só para "removeRecord". */
   id?: string;
-  /** só para "setAiProvider". */
-  provider?: "deepseek" | "openai";
-  /** só para "updateAiProviderConfig". */
-  patch?: { apiUrl?: string; model?: string; timeoutMs?: number; apiKey?: string };
+  /** só para "setAiProvider"/"removeAiProvider". */
+  providerId?: string;
+  /** só para "saveAiProvider" (sem `id` = novo provedor). */
+  provider?: {
+    id?: string;
+    presetId?: string;
+    label?: string;
+    apiUrl?: string;
+    model?: string;
+    timeoutMs?: number;
+    apiKey?: string;
+  };
   /** só para "aiAnalyze": seções cruas a categorizar. */
   sections?: unknown[];
   /** só para "aiCompare"/"aiMetrics": resumo dos carros. */

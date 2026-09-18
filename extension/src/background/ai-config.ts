@@ -1,20 +1,12 @@
 /** Config dos provedores de IA (substitui proxy/.env), guardada em chrome.storage.local. */
 
-export type AiProviderId = "deepseek" | "openai";
-export const PROVIDER_IDS: AiProviderId[] = ["deepseek", "openai"];
+import { CUSTOM_PRESET_ID, PROVIDER_PRESETS, findPreset, type ProviderPreset } from "./ai-presets";
 
-interface ProviderDef {
+/** Um provedor cadastrado pelo usuário. Pode haver vários do mesmo preset (ex.: 2 contas OpenAI). */
+export interface ProviderEntry {
+  id: string;
+  presetId: string;
   label: string;
-  defaultApiUrl: string;
-  defaultModel: string;
-}
-
-export const PROVIDER_DEFS: Record<AiProviderId, ProviderDef> = {
-  deepseek: { label: "DeepSeek", defaultApiUrl: "https://api.deepseek.com/chat/completions", defaultModel: "deepseek-flash" },
-  openai: { label: "OpenAI", defaultApiUrl: "https://api.openai.com/v1/chat/completions", defaultModel: "gpt-4o-mini" },
-};
-
-export interface ProviderConfig {
   apiUrl: string;
   apiKey: string;
   model: string;
@@ -22,11 +14,13 @@ export interface ProviderConfig {
 }
 
 interface StoredConfig {
-  activeProvider: AiProviderId;
-  providers: Record<AiProviderId, ProviderConfig>;
+  activeId: string | null;
+  providers: ProviderEntry[];
 }
 
 export interface AiProviderSnapshot {
+  id: string;
+  presetId: string;
   label: string;
   apiUrl: string;
   model: string;
@@ -36,38 +30,37 @@ export interface AiProviderSnapshot {
 }
 
 export interface AiConfigSnapshot {
-  provider: AiProviderId;
-  providers: Record<AiProviderId, AiProviderSnapshot>;
+  activeId: string | null;
+  providers: AiProviderSnapshot[];
+  /** Presets disponíveis pro formulário "Adicionar provedor" (fonte única, vive só no background). */
+  presets: ProviderPreset[];
+}
+
+export interface ProviderInput {
+  /** Omitido = novo provedor. */
+  id?: string;
+  presetId?: string;
+  label?: string;
+  apiUrl?: string;
+  model?: string;
+  timeoutMs?: number;
+  /** Vazio mantém a chave atual (a chave nunca é apagada à toa). */
+  apiKey?: string;
 }
 
 const STORAGE_KEY = "olx.aiConfig";
+const DEFAULT_TIMEOUT_MS = 180_000;
 
 function clampTimeout(ms: number): number {
-  return Number.isFinite(ms) ? Math.min(300_000, Math.max(10_000, ms)) : 180_000;
-}
-
-function defaults(): StoredConfig {
-  return {
-    activeProvider: "deepseek",
-    providers: {
-      deepseek: { apiUrl: PROVIDER_DEFS.deepseek.defaultApiUrl, apiKey: "", model: PROVIDER_DEFS.deepseek.defaultModel, timeoutMs: 180_000 },
-      openai: { apiUrl: PROVIDER_DEFS.openai.defaultApiUrl, apiKey: "", model: PROVIDER_DEFS.openai.defaultModel, timeoutMs: 180_000 },
-    },
-  };
+  return Number.isFinite(ms) ? Math.min(300_000, Math.max(10_000, ms)) : DEFAULT_TIMEOUT_MS;
 }
 
 async function readStored(): Promise<StoredConfig> {
   const data = await chrome.storage.local.get(STORAGE_KEY);
-  const stored = data[STORAGE_KEY] as StoredConfig | undefined;
-  if (!stored || typeof stored !== "object") return defaults();
-  const base = defaults();
-  return {
-    activeProvider: PROVIDER_IDS.includes(stored.activeProvider) ? stored.activeProvider : base.activeProvider,
-    providers: {
-      deepseek: { ...base.providers.deepseek, ...(stored.providers?.deepseek ?? {}) },
-      openai: { ...base.providers.openai, ...(stored.providers?.openai ?? {}) },
-    },
-  };
+  const stored = data[STORAGE_KEY] as Partial<StoredConfig> | undefined;
+  const providers = Array.isArray(stored?.providers) ? stored.providers : [];
+  const activeId = providers.some((p) => p.id === stored?.activeId) ? (stored?.activeId ?? null) : (providers[0]?.id ?? null);
+  return { activeId, providers };
 }
 
 async function writeStored(config: StoredConfig): Promise<void> {
@@ -81,22 +74,18 @@ function maskKey(key: string): string | null {
 
 function snapshot(config: StoredConfig): AiConfigSnapshot {
   return {
-    provider: config.activeProvider,
-    providers: {
-      deepseek: toSnapshot("deepseek", config.providers.deepseek),
-      openai: toSnapshot("openai", config.providers.openai),
-    },
-  };
-}
-
-function toSnapshot(id: AiProviderId, cfg: ProviderConfig): AiProviderSnapshot {
-  return {
-    label: PROVIDER_DEFS[id].label,
-    apiUrl: cfg.apiUrl,
-    model: cfg.model,
-    timeoutMs: cfg.timeoutMs,
-    hasKey: Boolean(cfg.apiKey),
-    keyPreview: maskKey(cfg.apiKey),
+    activeId: config.activeId,
+    providers: config.providers.map((p) => ({
+      id: p.id,
+      presetId: p.presetId,
+      label: p.label,
+      apiUrl: p.apiUrl,
+      model: p.model,
+      timeoutMs: p.timeoutMs,
+      hasKey: Boolean(p.apiKey),
+      keyPreview: maskKey(p.apiKey),
+    })),
+    presets: PROVIDER_PRESETS,
   };
 }
 
@@ -104,32 +93,52 @@ export async function getConfig(): Promise<AiConfigSnapshot> {
   return snapshot(await readStored());
 }
 
-/** Config completa (com a apiKey em texto), usada só internamente pelo ai-client. */
-export async function activeProviderConfig(): Promise<{ id: AiProviderId; def: ProviderDef; cfg: ProviderConfig }> {
+/** Provedor ativo com a apiKey em texto (uso interno do ai-client); null se não houver nenhum. */
+export async function activeProviderConfig(): Promise<ProviderEntry | null> {
   const stored = await readStored();
-  return { id: stored.activeProvider, def: PROVIDER_DEFS[stored.activeProvider], cfg: stored.providers[stored.activeProvider] };
+  return stored.providers.find((p) => p.id === stored.activeId) ?? null;
 }
 
-export async function setActiveProvider(provider: AiProviderId): Promise<AiConfigSnapshot> {
-  if (!PROVIDER_IDS.includes(provider)) throw new Error(`provider inválido: ${provider}`);
+export async function setActiveProvider(id: string): Promise<AiConfigSnapshot> {
   const stored = await readStored();
-  stored.activeProvider = provider;
+  if (!stored.providers.some((p) => p.id === id)) throw new Error("provedor não encontrado");
+  stored.activeId = id;
   await writeStored(stored);
   return snapshot(stored);
 }
 
-/** Campos omitidos/vazios mantêm o valor atual (a chave nunca é apagada à toa). */
-export async function updateProviderConfig(
-  provider: AiProviderId,
-  patch: { apiUrl?: string; model?: string; timeoutMs?: number; apiKey?: string },
-): Promise<AiConfigSnapshot> {
-  if (!PROVIDER_IDS.includes(provider)) throw new Error(`provider inválido: ${provider}`);
+/** Cria (sem `id`) ou atualiza um provedor. O primeiro cadastrado vira o ativo. */
+export async function saveProvider(input: ProviderInput): Promise<AiConfigSnapshot> {
   const stored = await readStored();
-  const cfg = stored.providers[provider];
-  if (typeof patch.apiUrl === "string" && patch.apiUrl.trim()) cfg.apiUrl = patch.apiUrl.trim();
-  if (typeof patch.model === "string" && patch.model.trim()) cfg.model = patch.model.trim();
-  if (patch.timeoutMs !== undefined && patch.timeoutMs !== null) cfg.timeoutMs = clampTimeout(Number(patch.timeoutMs));
-  if (typeof patch.apiKey === "string" && patch.apiKey.trim()) cfg.apiKey = patch.apiKey.trim();
+  const existing = input.id ? stored.providers.find((p) => p.id === input.id) : undefined;
+  if (input.id && !existing) throw new Error("provedor não encontrado");
+
+  const preset = findPreset(existing?.presetId ?? input.presetId ?? CUSTOM_PRESET_ID);
+  const apiUrl = (input.apiUrl ?? existing?.apiUrl ?? preset.apiUrl).trim();
+  const model = (input.model ?? existing?.model ?? preset.models[0]?.id ?? "").trim();
+  if (!/^https?:\/\//i.test(apiUrl)) throw new Error("Informe a URL da API (começando com https://).");
+  if (!model) throw new Error("Escolha ou informe o modelo.");
+
+  const entry: ProviderEntry = {
+    id: existing?.id ?? crypto.randomUUID(),
+    presetId: preset.id,
+    label: (input.label ?? existing?.label ?? preset.label).trim() || preset.label,
+    apiUrl,
+    apiKey: input.apiKey?.trim() || existing?.apiKey || "",
+    model,
+    timeoutMs: input.timeoutMs !== undefined ? clampTimeout(Number(input.timeoutMs)) : (existing?.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+  };
+
+  stored.providers = existing ? stored.providers.map((p) => (p.id === entry.id ? entry : p)) : [...stored.providers, entry];
+  if (!stored.activeId) stored.activeId = entry.id;
+  await writeStored(stored);
+  return snapshot(stored);
+}
+
+export async function removeProvider(id: string): Promise<AiConfigSnapshot> {
+  const stored = await readStored();
+  stored.providers = stored.providers.filter((p) => p.id !== id);
+  if (stored.activeId === id) stored.activeId = stored.providers[0]?.id ?? null;
   await writeStored(stored);
   return snapshot(stored);
 }

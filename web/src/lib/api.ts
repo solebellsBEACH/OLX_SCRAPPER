@@ -5,7 +5,7 @@
 
 import type {
   AiConfig,
-  AiProviderId,
+  AiProviderInput,
   CarMetric,
   CompareRankingItem,
   Db,
@@ -62,18 +62,20 @@ export const api = {
     return r.config;
   },
 
-  /** Troca o provedor ativo (DeepSeek/OpenAI). */
-  async setActiveProvider(provider: AiProviderId): Promise<AiConfig> {
-    const r = await send<{ config: AiConfig }>("setAiProvider", { provider });
+  /** Define qual provedor cadastrado as análises usam. */
+  async setActiveProvider(providerId: string): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("setAiProvider", { providerId });
     return r.config;
   },
 
-  /** Campos omitidos/vazios mantêm o valor atual (a chave nunca é apagada à toa). */
-  async updateProviderConfig(
-    provider: AiProviderId,
-    patch: { apiUrl?: string; model?: string; timeoutMs?: number; apiKey?: string },
-  ): Promise<AiConfig> {
-    const r = await send<{ config: AiConfig }>("updateAiProviderConfig", { provider, patch });
+  /** Cria (sem `id`) ou atualiza um provedor. Chave vazia mantém a atual. */
+  async saveProvider(provider: AiProviderInput): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("saveAiProvider", { provider });
+    return r.config;
+  },
+
+  async removeProvider(providerId: string): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("removeAiProvider", { providerId });
     return r.config;
   },
 

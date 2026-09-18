@@ -14,8 +14,7 @@ que mudou e por quê.
 ## O que é
 
 **OLX Workspace** é uma **extensão do Chrome (Manifest V3, TypeScript)** para garimpar anúncios
-de **carros** no OLX com apoio de IA (**DeepSeek** ou **OpenAI**, alternáveis pela aba "IA" do
-painel). Ela:
+de **carros** no OLX com apoio de IA (vários provedores — OpenAI, DeepSeek, Gemini, Groq, Mistral, xAI, OpenRouter ou endpoint próprio —, cadastrados em Config no painel). Ela:
 
 1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`) — ou **varre
    várias páginas** da paginação de uma vez ("Varrer páginas").
@@ -151,8 +150,7 @@ preço, status da IA), **Listagem** (tabela paginada com ordenação por coluna,
 persistentes na querystring — marca, ano, faixa de preço/km, busca — e seleção múltipla),
 **Detalhe** (`/anuncio/:id`: galeria + dados da IA + properties + descrição, "Reanalisar" e
 "Remover do DB"), **Comparador** (`/comparador?ids=…`: 2 a 4 anúncios lado a lado, opcionais
-em matriz), **IA** (provedor ativo, apiUrl/model/timeout/chave por provedor, testar) e
-**DB / Config** (JSON cru, exportar CSV/JSON, **importar um `db.json` antigo**, limpar DB).
+em matriz), **Config** (provedores de IA — vários, com select de modelo e teste —, JSON cru, exportar CSV/JSON, **importar um `db.json` antigo**, limpar DB).
 
 ### Usar
 
@@ -274,6 +272,81 @@ OLX_SCRAPPER/
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-09-18 (14) — Animações simples de movimento no painel
+
+- **Troca de página:** conteúdo entra com fade + leve subida (`Layout.tsx`, chaveado por rota); menu
+  lateral desliza da esquerda ao abrir.
+- **Entrada em sequência (`.stagger`):** cards-resumo e listas do Dashboard e cards da Listagem
+  aparecem um após o outro (40 ms de intervalo).
+- **Hover:** cards do Dashboard sobem 2 px (`.lift`); botões afundam ao clicar (`active:scale-95`).
+- **Modal e menu de ajuda:** entram com zoom leve; banner de "sem IA" e caixas do Modo aprendizado
+  deslizam de cima.
+- **Acessibilidade:** `prefers-reduced-motion` desliga todas (regra global em `index.css`).
+- Keyframes em `tailwind.config.js` (`popIn`, `slideDown`, `slideInLeft`). Não conferi no navegador.
+
+### 2026-09-18 (13) — Menu lateral fixo no scroll
+
+O `<aside>` do painel (`Layout.tsx`) agora é `sticky top-0 h-screen` a partir de `md`: fica parado
+enquanto o conteúdo rola, com rolagem própria se a janela for baixa. No celular a barra de
+navegação continua no fluxo normal (rola junto com a página).
+
+### 2026-09-18 (12) — Dark mode no painel
+
+Botão de tema no menu lateral que alterna **Sistema → Claro → Escuro** (`olx.theme` em
+`localStorage`; "Sistema" acompanha o SO em tempo real). O popup da extensão já seguia o tema do
+sistema (`prefers-color-scheme` em `popup.css`) e não mudou.
+
+- Cores do painel viraram variáveis CSS em canais RGB (`index.css`), com os valores escuros em
+  `:root[data-theme="dark"]`; `tailwind.config.js` só referencia as variáveis. Cores hexadecimais
+  fixas dos componentes (badges, alertas, botões, filtros) viraram tokens (`ok-bg`, `warn-border`,
+  `accent-hover`…).
+- `lib/theme.tsx` aplica o tema já na importação (antes do 1º render, sem piscar);
+  `components/ThemeToggle.tsx` é o botão.
+- Ao criar cor nova, use token — hex fixo em classe quebraria o modo escuro.
+- Só typecheck + build + `validate:store`; **não conferi o visual no navegador**, então vale
+  olhar contraste em cada tela.
+
+### 2026-09-18 (11) — Modo aprendizado no painel
+
+Interruptor **"Modo aprendizado"** no menu lateral do painel (lembrado em `localStorage`,
+`olx.learningMode`). Ligado, cada tela ganha caixas explicativas; desligado, nada muda.
+
+- `lib/learning.tsx` (contexto) e `components/learning/Learn.tsx` (`LearnNote`, `LearnPage`,
+  `LearningToggle`).
+- **Por tela:** o que ela é, o que dá pra fazer e como ler — Dashboard, Listagem, Anúncio,
+  Comparador e Config. Notas menores explicam cada card/lista do Dashboard, os detalhes expandidos
+  da Listagem, a conta do score no Anúncio (base 50, ajustes de preço de -30 a +30, condição da IA
+  de -5 a +10, rótulos, confiança), as especificações da IA e o resumo do Comparador.
+- Os números citados vêm das constantes de `lib/rows.ts` e do `Dashboard.tsx`; se essas mudarem, os
+  textos precisam ser atualizados junto.
+- Só typecheck + build + `validate:store`; não abri no navegador.
+
+### 2026-09-18 (10) — Vários provedores de IA, com modelos em select, dentro de Config
+
+O sistema só funciona com IA, então agora ele **avisa quando não há nenhuma configurada** e a
+configuração deixou de ser fixa em DeepSeek/OpenAI.
+
+- **Multi-provedor.** `ai-config.ts` guarda uma **lista** de provedores (`olx.aiConfig` =
+  `{ activeId, providers[] }`), podendo cadastrar vários (inclusive dois do mesmo tipo). Um é o
+  ativo; as análises usam o ativo. Não há migração do formato antigo (a base foi zerada).
+- **Catálogo com modelos reais** (`ai-presets.ts`): OpenAI, DeepSeek, Google Gemini, Groq, Mistral,
+  xAI, OpenRouter (dá acesso a Claude etc.) e "Outro (compatível com OpenAI)" para endpoint
+  próprio (Ollama, LM Studio…). Cada um tem um **select de modelos** + opção "Outro modelo
+  (digitar)". Só entraram modelos de chat sem raciocínio obrigatório, porque a chamada usa
+  `temperature: 0`. Isso também corrige o modelo padrão do DeepSeek (`deepseek-flash` não existe;
+  agora `deepseek-chat`).
+- **Onde configurar:** página **Config** do painel (`web/src/components/config/AiProviders.tsx`).
+  A antiga aba "IA" (`pages/Ai.tsx`, rota `/ia`) foi removida; o item "DB / Config" virou "Config".
+- **Aviso de "sem IA":** banner global no painel (`AiMissingBanner`), aviso no popup
+  (`popup/ai-missing.ts`, abre Config ao clicar), status no menu lateral e erro claro
+  `AI_NOT_CONFIGURED` do background.
+- **Mensagens do background:** `setAiProvider` (agora por `providerId`), `saveAiProvider` e
+  `removeAiProvider` substituem `updateAiProviderConfig`. `getAiConfig` devolve também o catálogo.
+- **Manifest:** `host_permissions` cobre os provedores do catálogo; `optional_host_permissions`
+  permite pedir acesso a um endpoint próprio na hora de salvar.
+- Não testado no Chrome com chaves reais: só typecheck + build + `validate:store`. As listas de
+  modelos refletem o que eu sabia de cada API; se algum sumir do provedor, use "Outro modelo".
 
 ### 2026-09-18 (9) — Exigência de busca de carros só no "Analisar página"
 

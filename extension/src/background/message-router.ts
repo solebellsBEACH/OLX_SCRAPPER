@@ -65,11 +65,14 @@ export function registerMessageRouter(): void {
         case "getAiConfig":
           return { ok: true, config: await aiConfig.getConfig() };
         case "setAiProvider":
+          if (!message.providerId) return { ok: false, error: "providerId ausente" };
+          return { ok: true, config: await aiConfig.setActiveProvider(message.providerId) };
+        case "saveAiProvider":
           if (!message.provider) return { ok: false, error: "provider ausente" };
-          return { ok: true, config: await aiConfig.setActiveProvider(message.provider) };
-        case "updateAiProviderConfig":
-          if (!message.provider) return { ok: false, error: "provider ausente" };
-          return { ok: true, config: await aiConfig.updateProviderConfig(message.provider, message.patch ?? {}) };
+          return { ok: true, config: await aiConfig.saveProvider(message.provider) };
+        case "removeAiProvider":
+          if (!message.providerId) return { ok: false, error: "providerId ausente" };
+          return { ok: true, config: await aiConfig.removeProvider(message.providerId) };
         case "aiAnalyze": {
           const { categorias, raw, usage } = await aiClient.analyzeSections((message.sections ?? []) as never);
           return { ok: true, categorias, raw, usage };

@@ -13,7 +13,7 @@
  *                         a listagem original.
  *   - "getDb" / "clearDb" / "importDb" / "removeRecord": lê / limpa / importa /
  *                         remove um registro da base.
- *   - "getAiConfig" / "setAiProvider" / "updateAiProviderConfig": config dos
+ *   - "getAiConfig" / "setAiProvider" / "saveAiProvider" / "removeAiProvider": config dos
  *                         provedores de IA (DeepSeek/OpenAI).
  *   - "aiAnalyze" / "aiCompare" / "aiMetrics": chamadas de IA feitas pelo painel.
  *

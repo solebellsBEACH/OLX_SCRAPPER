@@ -18,6 +18,7 @@ import { registerOpenPanelAction } from "./actions/open-panel";
 import { registerQuickAnalyzeAction } from "./actions/quick-analyze";
 import { registerSelectionActions } from "./actions/selection";
 import { analyzePendingBeginner, registerBeginnerMode } from "./beginner";
+import { registerAiMissingToast } from "./ai-missing";
 import { registerModeToggle } from "./mode";
 import { registerPendingToast } from "./pending-toast";
 import { registerProgressListener } from "./progress-listener";
@@ -28,6 +29,7 @@ registerModeToggle();
 registerBeginnerMode();
 
 registerOpenPanelAction();
+registerAiMissingToast();
 registerAnalyzeAction();
 registerQuickAnalyzeAction();
 registerCrawlAction();

@@ -31,7 +31,7 @@ export function Empty({
 
 export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 border border-[#f2c9c9] bg-[#fdf1f1] p-12 text-center">
+    <div className="flex flex-col items-center gap-3 border border-danger-border bg-danger-bg p-12 text-center">
       <PlugZap className="h-6 w-6 text-danger" />
       <p className="text-sm font-semibold text-danger">{message}</p>
       {onRetry && (

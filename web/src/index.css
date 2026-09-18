@@ -2,9 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tokens como canais RGB (permitem `bg-warn/10`). O tema vem de data-theme no <html>,
+   resolvido em lib/theme.tsx ("sistema" vira claro/escuro). */
 @layer base {
-  html {
+  :root {
     color-scheme: light;
+    --bg: 250 250 250;
+    --surface: 255 255 255;
+    --border: 229 229 229;
+    --fg: 26 26 26;
+    --muted: 107 107 107;
+    --subtle: 154 154 154;
+    --accent: 37 99 235;
+    --accent-fg: 255 255 255;
+    --accent-weak: 239 244 255;
+    --accent-border: 201 219 255;
+    --accent-hover: 29 78 216;
+    --accent-weak-hover: 219 231 255;
+    --ok: 21 128 61;
+    --ok-bg: 242 248 243;
+    --ok-bg-hover: 233 244 234;
+    --ok-border: 187 231 198;
+    --warn: 180 83 9;
+    --warn-bg: 253 247 236;
+    --warn-border: 242 220 174;
+    --danger: 185 28 28;
+    --danger-bg: 253 241 241;
+    --danger-border: 242 201 201;
+    --danger-hover: 254 242 242;
+    --caution-bg: 254 252 232;
+    --caution-border: 240 220 130;
+    --caution-fg: 133 77 14;
+    --orange-bg: 255 244 234;
+    --orange-border: 247 201 163;
+    --orange-fg: 194 65 12;
+    --tip-bg: 0 0 0;
+    --tip-fg: 255 255 255;
+    --selection: 219 228 255;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: 15 17 21;
+    --surface: 23 26 33;
+    --border: 42 47 57;
+    --fg: 230 232 238;
+    --muted: 160 167 180;
+    --subtle: 123 131 145;
+    --accent: 96 165 250;
+    --accent-fg: 11 18 32;
+    --accent-weak: 21 35 61;
+    --accent-border: 37 64 110;
+    --accent-hover: 147 197 253;
+    --accent-weak-hover: 28 47 82;
+    --ok: 74 222 128;
+    --ok-bg: 16 40 26;
+    --ok-bg-hover: 21 51 32;
+    --ok-border: 31 90 53;
+    --warn: 251 191 36;
+    --warn-bg: 42 36 16;
+    --warn-border: 92 74 22;
+    --danger: 248 113 113;
+    --danger-bg: 42 20 20;
+    --danger-border: 94 38 38;
+    --danger-hover: 58 26 26;
+    --caution-bg: 42 39 16;
+    --caution-border: 90 82 24;
+    --caution-fg: 250 204 21;
+    --orange-bg: 43 28 16;
+    --orange-border: 97 57 26;
+    --orange-fg: 251 146 60;
+    --tip-bg: 230 232 238;
+    --tip-fg: 15 17 21;
+    --selection: 37 64 110;
+  }
+  html {
+    color-scheme: inherit;
   }
   body {
     @apply bg-bg text-fg font-sans text-base;
@@ -25,15 +97,52 @@
     font-variant-numeric: tabular-nums;
   }
   ::selection {
-    background: #dbe4ff;
+    background: rgb(var(--selection));
   }
 }
 
 @layer components {
+  /* Filhos entram em sequência (até 12), cada um 40ms depois do anterior. */
+  .stagger > * {
+    animation: fadeIn 260ms ease-out both;
+  }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(5) { animation-delay: 160ms; }
+  .stagger > *:nth-child(6) { animation-delay: 200ms; }
+  .stagger > *:nth-child(7) { animation-delay: 240ms; }
+  .stagger > *:nth-child(8) { animation-delay: 280ms; }
+  .stagger > *:nth-child(9) { animation-delay: 320ms; }
+  .stagger > *:nth-child(10) { animation-delay: 360ms; }
+  .stagger > *:nth-child(11) { animation-delay: 400ms; }
+  .stagger > *:nth-child(n + 12) { animation-delay: 440ms; }
+  /* Card que sobe 2px no hover. */
+  .lift {
+    transition: transform 130ms ease-out, box-shadow 130ms ease-out, border-color 130ms ease-out;
+  }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  }
   .row-opportunity {
-    background: #f2f8f3;
+    background: rgb(var(--ok-bg));
   }
   .row-opportunity:hover {
-    background: #e9f4ea;
+    background: rgb(var(--ok-bg-hover));
+  }
+}
+
+/* Quem pede menos movimento no sistema não vê animação nenhuma. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .lift:hover {
+    transform: none;
   }
 }

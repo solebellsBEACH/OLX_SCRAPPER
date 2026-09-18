@@ -21,7 +21,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-40 animate-fade-in flex items-center justify-center bg-black/40 p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -30,7 +30,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-[480px] animate-fade-in rounded-md border border-border bg-surface p-6 shadow-popover motion-reduce:animate-none"
+        className="w-full max-w-[480px] animate-pop-in rounded-md border border-border bg-surface p-6 shadow-popover"
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <h2 className="text-lg font-semibold">{title}</h2>

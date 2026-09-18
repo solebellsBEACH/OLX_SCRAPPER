@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -101,6 +102,18 @@ export function Detail() {
         </Button>
       </PageHeader>
 
+      <LearnPage
+        title="Anúncio"
+        what="Análise completa de um único carro: fotos, preço, comparação com o mercado, especificações estimadas pela IA e os dados originais do anúncio."
+        can={[
+          "\"Abrir no OLX\": vai ao anúncio original.",
+          "\"Reanalisar\": abre o anúncio de novo, extrai os dados e pede outra categorização à IA (use se a análise veio incompleta).",
+          "\"Remover do DB\": apaga este carro da sua base (não dá para desfazer).",
+          "Clicar nas miniaturas para trocar a foto grande.",
+          "Abrir \"Ver como essa análise foi calculada\" para ver a conta passo a passo.",
+        ]}
+        read="O preço riscado é o preço anterior do anúncio (houve queda). A etiqueta “oportunidade” aparece quando a análise considera o negócio atrativo."
+      />
       {busy === "analyze" && <p role="status" className="text-sm text-muted">Aguardando a IA. Isso pode levar alguns minutos.</p>}
       {msg && (
         <p className="border border-border bg-surface p-3 text-sm text-muted">{msg}</p>
@@ -159,14 +172,22 @@ export function Detail() {
             <span className="text-sm text-subtle tnum">{formatDate(row.date)}</span>
           </div>
 
+          <LearnNote title="Como a análise é calculada">
+            <p>A <strong>oportunidade</strong> começa em 50 e sobe ou desce conforme o preço frente à média de similares: 5% a 10% abaixo dá +10, 10% a 20% abaixo +20, 20% ou mais abaixo +30 (preço 25% abaixo ou pior é tratado com cautela: bônus só +15 e um alerta). Acima do mercado desconta na mesma escala, até -30.</p>
+            <p>A <strong>condição estimada pela IA</strong> ajusta de -5 a +10 e <strong>km suspeita</strong> tira pontos. Rótulos: 85+ Excelente, 70+ Boa, 50+ Dentro do esperado, abaixo disso Pouco atrativa.</p>
+            <p>A <strong>confiança</strong> diz o quanto dá para confiar na análise: sobe quando há preço, ano, km, marca/modelo e nota da IA, e quando há pelo menos 2 (idealmente 5+) anúncios para comparar. 75+ é Alta, 50+ Média.</p>
+          </LearnNote>
           <VehicleSummary analysis={row.analysis} price={row.price} />
 
           <Section title="Especificações">
             <p className="mb-2 text-xs text-subtle">Estimadas pela IA a partir do anúncio.</p>
+            <LearnNote className="mb-3">
+              <p>A IA lê o título e a descrição e preenche marca, modelo, versão, motor etc. Ela pode errar ou deixar em branco (—) o que não aparece no texto; a <strong>km suspeita</strong> compara a km anunciada com a idade do carro (média muito baixa por ano pode indicar odômetro adulterado).</p>
+            </LearnNote>
             {cat ? (
               <>
                 {cat.kmSuspeito && (
-                  <div className="mb-3 flex items-start gap-2 border border-[#f2dcae] bg-[#fdf7ec] p-3 text-sm text-warn">
+                  <div className="mb-3 flex items-start gap-2 border border-warn-border bg-warn-bg p-3 text-sm text-warn">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>
                       <strong>Km suspeita.</strong> {cat.kmSuspeitoMotivo ?? "Muito baixa pra idade do carro — possível odômetro adulterado."}
@@ -192,6 +213,9 @@ export function Detail() {
           </Section>
 
           <Section title={`Dados do anúncio (${detail.properties?.length ?? 0})`}>
+            <LearnNote className="mb-3">
+              <p>Campos exatamente como o vendedor preencheu no OLX, sem interpretação da IA.</p>
+            </LearnNote>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
               {detail.properties?.map((p) => <Item key={p.label} k={p.label} v={p.value} />)}
             </dl>

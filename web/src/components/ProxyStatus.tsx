@@ -8,7 +8,7 @@ export function ProxyStatus({ className }: { className?: string }) {
   const map = {
     checking: { dot: "bg-subtle", text: "Verificando IA…" },
     ready: { dot: "bg-ok", text: "IA configurada" },
-    nokey: { dot: "bg-warn", text: "Chave de IA não configurada" },
+    nokey: { dot: "bg-warn", text: "Nenhuma IA configurada" },
   }[state];
 
   return (

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { useNavigate } from "react-router-dom";
 import {
   getCoreRowModel,
@@ -149,6 +150,23 @@ export function Listing() {
     <div className="flex flex-col gap-3">
       <PageHeader title="Listagem" />
 
+      <LearnPage
+        title="Listagem"
+        what="Tabela com todos os anúncios da base. É aqui que você procura, filtra, ordena e escolhe carros para comparar."
+        can={[
+          "Buscar por marca, modelo ou cidade e refinar por marca, ano, faixa de preço e km — a lista atualiza na hora.",
+          "Ordenar clicando no cabeçalho de uma coluna (no celular, use o seletor \"Ordenar\").",
+          "Abrir a seta de cada linha para ver mercado, alertas e dados do anúncio sem sair da página.",
+          "Marcar de 2 a 4 carros e clicar em \"Comparar\" para vê-los lado a lado.",
+          "Abrir a análise completa ou o anúncio original no OLX.",
+        ]}
+        read="A coluna Status mostra como o preço se compara com anúncios parecidos: verde = abaixo do esperado, amarelo = dentro (±5%), laranja = acima, cinza = poucos dados para comparar. Cor nunca vem sozinha: sempre há texto junto."
+      />
+      <LearnNote title="Filtros e seleção">
+        <p>Os filtros ficam guardados no endereço da página (querystring): você pode copiar o link e voltar ao mesmo resultado depois. As etiquetas abaixo dos filtros mostram o que está ativo; o ✕ remove um, "Limpar tudo" remove todos.</p>
+        <p>O botão <strong>Comparar</strong> só habilita com 2 a 4 anúncios marcados.</p>
+      </LearnNote>
+
       {status === "empty" ? (
         <Empty />
       ) : (
@@ -207,7 +225,7 @@ export function Listing() {
               {pager()}
               <div key={listKey} className="animate-fade-in motion-reduce:animate-none">
                 <ResultsTable table={table} expanded={expanded} onToggle={toggleExpanded} />
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4 sm:grid-cols-2 lg:hidden">
+                <div className="stagger grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4 sm:grid-cols-2 lg:hidden">
                   {pageRows.map((r) => (
                     <ResultCard
                       key={r.id}

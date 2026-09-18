@@ -31,7 +31,7 @@ export function ActiveFilters({ filters, setFilter, reset }: Props) {
             type="button"
             onClick={() => setFilter(k, "")}
             aria-label={`Remover filtro ${LABEL[k](filters[k])}`}
-            className="inline-flex h-[32px] items-center gap-1 rounded-full border border-[#c9dbff] bg-accent-weak px-3 text-xs font-semibold text-accent transition-colors duration-DEFAULT hover:bg-[#dbe7ff] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            className="inline-flex h-[32px] items-center gap-1 rounded-full border border-accent-border bg-accent-weak px-3 text-xs font-semibold text-accent transition-colors duration-DEFAULT hover:bg-accent-weak-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
             {LABEL[k](filters[k])}
             <X aria-hidden className="h-3 w-3" />

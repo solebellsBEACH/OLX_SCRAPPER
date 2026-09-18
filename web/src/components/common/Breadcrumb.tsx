@@ -16,8 +16,7 @@ function crumbsFor(pathname: string): Crumb[] {
   if (pathname.startsWith("/listagem")) return [HOME, { label: "Listagem" }];
   if (pathname.startsWith("/anuncio")) return [HOME, LIST, { label: "Anúncio" }];
   if (pathname.startsWith("/comparador")) return [HOME, LIST, { label: "Comparador" }];
-  if (pathname.startsWith("/ia")) return [HOME, { label: "IA" }];
-  if (pathname.startsWith("/db")) return [HOME, { label: "DB / Config" }];
+  if (pathname.startsWith("/db")) return [HOME, { label: "Config" }];
   return [HOME];
 }
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { Link, useSearchParams } from "react-router-dom";
 import { Brain, Check, ExternalLink, Gauge, Minus } from "lucide-react";
 import { api, ApiError, type CompareCarInput } from "@/lib/api";
@@ -246,6 +247,18 @@ export function Compare() {
         </Button>
       </PageHeader>
 
+      <LearnPage
+        title="Comparador"
+        what="Coloca de 2 a 4 carros lado a lado para você enxergar diferenças de preço, km, ano e opcionais."
+        can={[
+          "Ler \"Principais diferenças\": um resumo calculado direto dos dados, sem IA.",
+          "\"Comparar com IA\": a IA ordena os carros do melhor ao pior custo-benefício e explica por quê.",
+          "\"Exibir métricas\": a IA estima consumo, potência e peso de cada modelo.",
+          "Clicar no nome de um carro para abrir a análise completa.",
+        ]}
+        read="Na tabela, o melhor valor de cada linha (menor preço, menor km, ano mais novo) é o destaque. Ranking e métricas da IA são estimativas baseadas em conhecimento geral do modelo — confirme antes de decidir."
+      />
+
       {/* Resumos compactos — a primeira coisa que o comprador vê */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {rows.map((r) => (
@@ -258,6 +271,9 @@ export function Compare() {
         <section className="border border-border bg-surface">
           <p className="border-b border-border px-3 py-2 text-sm font-semibold">Principais diferenças</p>
           <div className="flex flex-col gap-2 p-3 text-sm">
+            <LearnNote>
+              <p>Resumo feito por regras simples sobre os dados dos carros (diferença de preço, km e ano) — não usa IA e não gasta sua chave.</p>
+            </LearnNote>
             {differences.length > 0 && (
               <ul className="flex list-disc flex-col gap-1 pl-4">
                 {differences.map((d, i) => (
@@ -404,7 +420,7 @@ export function Compare() {
                   return (
                     <li
                       key={item.id}
-                      className={cn("border border-border p-3", item.posicao === 1 && "border-ok bg-[#f0fdf4]")}
+                      className={cn("border border-border p-3", item.posicao === 1 && "border-ok bg-ok-bg")}
                     >
                       <span className="font-semibold">
                         {item.posicao}º — {row ? displayName(row) : item.id}

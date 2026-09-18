@@ -66,7 +66,7 @@ export function HelpButton({ onTour }: { onTour: () => void }) {
     <>
       <div className="fixed bottom-4 right-4 z-30 flex flex-col items-end gap-2">
         {menu && (
-          <div role="menu" aria-label="Ajuda e suporte" className="w-[240px] animate-fade-in rounded-md border border-border bg-surface p-1 shadow-popover motion-reduce:animate-none">
+          <div role="menu" aria-label="Ajuda e suporte" className="w-[240px] animate-pop-in rounded-md border border-border bg-surface p-1 shadow-popover motion-reduce:animate-none">
             <p className="px-3 py-2 text-xs font-semibold text-muted">Ajuda &amp; Suporte</p>
             {items.map(({ label, icon: Icon, run }) => (
               <button

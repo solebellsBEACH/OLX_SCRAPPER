@@ -70,9 +70,10 @@ export function useAiStatus() {
   const check = useCallback(async () => {
     try {
       const config = await api.getConfig();
-      const active = config.providers[config.provider];
-      setState(active.hasKey ? "ready" : "nokey");
-      setDetail(`${active.label} · ${active.model}`);
+      const active = config.providers.find((p) => p.id === config.activeId);
+      const needsKey = active?.presetId !== "custom";
+      setState(active && (active.hasKey || !needsKey) ? "ready" : "nokey");
+      setDetail(active ? `${active.label} · ${active.model}` : "Nenhum provedor cadastrado");
     } catch {
       setState("nokey");
       setDetail("");

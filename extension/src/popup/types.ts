@@ -68,6 +68,8 @@ export interface DispatchResponse {
   ok: boolean;
   result?: AnalyzeResult;
   db?: Record<string, unknown>;
+  /** só em "getAiConfig". */
+  config?: { activeId: string | null; providers: Array<{ id: string; presetId: string; hasKey: boolean }> };
   error?: string;
   /** true = o usuário cancelou a operação (não é falha). */
   cancelled?: boolean;
