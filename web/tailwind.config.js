@@ -58,11 +58,17 @@ export default {
           "sans-serif",
         ],
       },
+      keyframes: {
+        fadeIn: { from: { opacity: "0", transform: "translateY(2px)" }, to: { opacity: "1", transform: "none" } },
+      },
+      animation: { "fade-in": "fadeIn 200ms ease-out" },
       transitionDuration: {
         DEFAULT: "130ms",
       },
       boxShadow: {
         popover: "0 2px 8px rgba(0,0,0,0.08)",
+        card: "0 2px 8px rgba(0,0,0,0.1)",
+        "card-hover": "0 4px 16px rgba(0,0,0,0.15)",
       },
     },
   },

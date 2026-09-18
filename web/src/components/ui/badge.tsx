@@ -1,13 +1,15 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
-type Tone = "neutral" | "ok" | "warn" | "danger" | "accent";
+type Tone = "neutral" | "ok" | "warn" | "danger" | "accent" | "caution" | "orange";
 
 const tones: Record<Tone, string> = {
   neutral: "border-border bg-bg text-muted",
   ok: "border-[#bbe7c6] bg-[#f2f8f3] text-ok",
   warn: "border-[#f2dcae] bg-[#fdf7ec] text-warn",
   danger: "border-[#f2c9c9] bg-[#fdf1f1] text-danger",
+  caution: "border-[#f0dc82] bg-[#fefce8] text-[#854d0e]",
+  orange: "border-[#f7c9a3] bg-[#fff4ea] text-[#c2410c]",
   accent: "border-[#c9dbff] bg-accent-weak text-accent",
 };
 

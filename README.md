@@ -275,6 +275,28 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-18 (8) — Painel web: usabilidade da Listagem, ajuda e responsividade
+
+Refactor de usabilidade do painel (`web/`), adaptado à stack existente (React + Tailwind, sem Zustand:
+os filtros já vivem na querystring).
+
+- **Listagem**: tabela reduzida a 5 colunas (Veículo, Ano, Km, Preço, Status) + seleção e ▶; 2ª linha
+  com descrição/oportunidade/alertas; clicar expande os detalhes inline (`components/results/*`).
+  Abaixo de 1024px vira grid de cards (foto 16/9, preço grande, botão "Ver detalhes" 100% width).
+- **Filtros**: busca larga (44px, 16px, sugestões via datalist), chips removíveis, "Limpar tudo",
+  "N anúncios encontrados (Filtrou: -X)" (verde/cinza), mensagem de zero resultados, fade ao mudar a lista.
+  No mobile os filtros avançados ficam recolhidos atrás do botão "Filtros".
+- **Paginação** (`common/Pagination.tsx`) acima e abaixo, botões de 44px, janela de páginas, "Mostrando X–Y de Z",
+  scroll ao topo ao trocar de página.
+- **Cores** (`lib/colors.ts`): verde/amarelo/laranja/cinza derivados do `priceStatus` (limiar ±5%), sempre com
+  ícone + texto (`StatusBadge`).
+- **Ajuda**: tooltips `?` (Status, Oportunidade, Alertas, Mercado, Local), botão flutuante de ajuda (tour, cores,
+  filtros, FAQ), onboarding de 3 telas (preferência em localStorage), breadcrumb em todas as páginas.
+- **Layout**: menu lateral vira barra horizontal < 768px; Input/Select com 44px e 16px no mobile.
+- Removidos `data-table/{data-table,pagination,toolbar}.tsx` (só a Listagem usava).
+- **Não feito**: Comparador redesenhado, modo escuro, Zustand/React Query, testes automatizados,
+  Storybook, drawer de filtros (usa painel recolhível), item "Contato" do menu de ajuda (sem canal definido).
+
 ### 2026-09-18 (7) — Toast de análise pendente
 
 - Ao abrir o popup (e ao fim de cada operação) a extensão lê o DB; se houver carros só com o
