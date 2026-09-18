@@ -9,15 +9,16 @@ import {
   pageInfoEl,
   pagerEl,
   prevBtn,
-  scrollBtn,
   selAllBtn,
   selectAllBtn,
   selectCountBtn,
   selectCountInput,
   showIndicatorsBtn,
+  cancelAdvBtn,
   statusEl,
   toolbarEl,
 } from "../dom";
+import { hidePendingToast, refreshPendingToast } from "../pending-toast";
 import { PAGE_SIZE, pendingItems, state } from "../state";
 import { renderItem } from "./item-row";
 
@@ -63,9 +64,12 @@ export function syncSelectionUi(): void {
 
 export function lockButtons(lock: boolean): void {
   statusEl.classList.toggle("is-loading", lock);
+  if (lock) hidePendingToast();
+  else void refreshPendingToast();
+  cancelAdvBtn.hidden = !lock;
+  cancelAdvBtn.disabled = false;
   analyzeBtn.textContent = lock ? "Processando..." : "Analisar página";
   analyzeBtn.disabled = lock;
-  scrollBtn.disabled = lock;
   showIndicatorsBtn.disabled = lock;
   loadPendingBtn.disabled = lock;
   crawlBtn.disabled = lock;

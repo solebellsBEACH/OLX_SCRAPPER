@@ -590,3 +590,303 @@ button {
 @media (prefers-reduced-motion: reduce) {
   #status.is-loading::before { animation: none; }
 }
+
+/* ================================================================
+ *  Modo Iniciante / alternância de modo / tooltips
+ * ================================================================ */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: view-in 0.18s ease-out;
+}
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mode-btn {
+  flex: 1;
+  appearance: none;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mode-btn:focus-visible,
+.choice:focus-visible,
+.link-btn:focus-visible,
+.tip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.choice {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  border: 2px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.choice:hover {
+  border-color: var(--muted);
+}
+
+.choice[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice-ico {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.choice-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.choice-txt strong {
+  font-size: 15px;
+}
+
+.choice-txt span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.link-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.options .is-disabled {
+  opacity: 0.5;
+}
+
+.count-line {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 1.5em;
+}
+
+.btn-lg {
+  padding: 14px 16px;
+  font-size: 15px;
+}
+
+.b-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--accent-soft);
+}
+
+.b-status.is-ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.b-status.is-error {
+  background: var(--err-bg);
+  color: var(--err-fg);
+}
+
+#openResultsBtn {
+  margin-top: 10px;
+}
+
+.spinner {
+  display: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.b-status.is-busy .spinner {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Tooltip (?) ---- */
+.tip-row {
+  position: relative;
+}
+
+.tip {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: help;
+}
+
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 10;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.tip:hover::after,
+.tip:focus-visible::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view, .spinner { animation: none; }
+}
+
+.b-status.is-cancel {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+#cancelBtn {
+  margin-top: 10px;
+}
+
+/* botões da aba "Analisar página" juntos, quebrando linha em vez de empilhar */
+.actions-wrap {
+  flex-wrap: wrap;
+}
+
+.actions-wrap .btn {
+  flex: 1 1 calc(50% - 4px);
+  white-space: nowrap;
+}
+
+/* ---- Toast de análise pendente + diálogo de confirmação ---- */
+.toast {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-fg);
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  animation: view-in 0.18s ease-out;
+}
+
+.toast:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dialog {
+  max-width: 360px;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.dialog p {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.dialog-btns {
+  display: flex;
+  gap: 8px;
+}

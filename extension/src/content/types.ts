@@ -9,6 +9,7 @@ export type ContentAction =
   | "extractSections"
   | "extractAdPage"
   | "autoScroll"
+  | "stopScroll"
   | "extractPagination"
   | "markCards"
   | "hideIndicators"

@@ -46,6 +46,7 @@ async function hideIndicatorsClick(): Promise<void> {
 }
 
 export function registerIndicatorsAction(): void {
+  setIndicatorsButtonLabel();
   showIndicatorsBtn.addEventListener("click", () => {
     void (state.indicatorsShown ? hideIndicatorsClick() : showIndicatorsClick());
   });

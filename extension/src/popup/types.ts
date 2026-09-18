@@ -69,6 +69,8 @@ export interface DispatchResponse {
   result?: AnalyzeResult;
   db?: Record<string, unknown>;
   error?: string;
+  /** true = o usuário cancelou a operação (não é falha). */
+  cancelled?: boolean;
 }
 
 export interface ProgressMessage {

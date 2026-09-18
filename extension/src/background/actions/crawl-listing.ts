@@ -1,3 +1,4 @@
+import { beginOperation, throwIfCancelled } from "../cancel";
 import { categorizeInChunks } from "../ai-categorize";
 import { CRAWL_MAX_PAGES } from "../constants";
 import { dbAll, dbUpsertMany } from "../db";
@@ -14,6 +15,7 @@ export async function crawlListing({
   skipKnown,
   saveToDb,
 }: CrawlOptions): Promise<CrawlResult> {
+  beginOperation();
   const tab = await getActiveOlxTab();
   const tabId = tab.id;
   const baseUrl = tab.url ?? "";
@@ -55,6 +57,7 @@ export async function crawlListing({
 
   try {
     for (let p = startPage; p < startPage + pages; p += 1) {
+      throwIfCancelled();
       const pageUrl = withPage(baseUrl, p);
       const done = p - startPage;
 
@@ -117,6 +120,10 @@ export async function crawlListing({
           ` · total ${allCards.length}`,
       );
     }
+  } catch (err) {
+    // cancelado no meio da varredura: devolve a aba para onde o usuário estava
+    await chrome.tabs.update(tabId, { url: originalUrl }).catch(() => {});
+    throw err;
   } finally {
     await clearPageLoading(tabId);
   }

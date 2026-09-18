@@ -1,11 +1,14 @@
-import { panelAnalyze, panelCrawl, tabAnalyzeBtn, tabCrawlBtn } from "../dom";
+import { panelAnalyze, panelConfig, panelCrawl, tabAnalyzeBtn, tabConfigBtn, tabCrawlBtn } from "../dom";
 
-function showTab(tab: "crawl" | "analyze"): void {
-  const isCrawl = tab === "crawl";
-  panelCrawl.hidden = !isCrawl;
-  panelAnalyze.hidden = isCrawl;
-  tabCrawlBtn.setAttribute("aria-selected", String(isCrawl));
-  tabAnalyzeBtn.setAttribute("aria-selected", String(!isCrawl));
+type Tab = "crawl" | "analyze" | "config";
+
+function showTab(tab: Tab): void {
+  panelCrawl.hidden = tab !== "crawl";
+  panelAnalyze.hidden = tab !== "analyze";
+  panelConfig.hidden = tab !== "config";
+  tabCrawlBtn.setAttribute("aria-selected", String(tab === "crawl"));
+  tabAnalyzeBtn.setAttribute("aria-selected", String(tab === "analyze"));
+  tabConfigBtn.setAttribute("aria-selected", String(tab === "config"));
 }
 
 export function registerTabSwitcher(): void {
@@ -14,4 +17,5 @@ export function registerTabSwitcher(): void {
   }
   tabCrawlBtn.addEventListener("click", () => showTab("crawl"));
   tabAnalyzeBtn.addEventListener("click", () => showTab("analyze"));
+  tabConfigBtn.addEventListener("click", () => showTab("config"));
 }

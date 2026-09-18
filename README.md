@@ -275,6 +275,65 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-18 (7) — Toast de análise pendente
+
+- Ao abrir o popup (e ao fim de cada operação) a extensão lê o DB; se houver carros só com o
+  rascunho da listagem, aparece um toast "N carros com análise pendente" (`src/popup/pending-toast.ts`).
+  Clicar abre um diálogo "Deseja fazer a análise detalhada de N carros agora?"; confirmando, roda o
+  "Analisar selecionados" em todos (Modo Iniciante usa o spinner/cancelar dele; Avançado usa a barra
+  de status). O toast some enquanto uma operação roda.
+- `analyzeTargets()` extraído de `actions/analyze-selected.ts` para reuso.
+- Limitação: a "Análise rápida" não grava no DB, então só conta como pendente o que veio de
+  "Analisar página"/"Varrer páginas" (rascunho raso).
+
+### 2026-09-18 (6) — Indicadores ativados por padrão
+
+- No Avançado o botão já abre como "Ocultar indicadores" (estado inicial `indicatorsShown = true`),
+  refletindo que a página marca os cards sozinha. Limitação: se você ocultou numa sessão anterior
+  e reabriu o popup, o rótulo volta a "Ocultar" mesmo com a página oculta (clique duas vezes).
+
+### 2026-09-18 (5) — Ajustes de botões no Avançado
+
+- Removido o botão "Auto-scroll" do Avançado (a rolagem segue como opção "Rolar automaticamente" no
+  Iniciante e "Rolar cada página" na varredura). "Exibir indicadores" e "Carregar pendentes do DB"
+  foram para a aba ⚙️ Config; a aba "Analisar página" ficou com "Analisar página" + "Análise rápida".
+
+### 2026-09-18 (4) — Aba "Config" no Modo Avançado
+
+- Os textos explicativos (indicadores, análise rápida, rascunho no DB) saíram da aba
+  "Analisar página" e foram para uma nova aba **⚙️ Config** ("Como funciona"). Só muda a UI.
+
+### 2026-09-18 (3) — Cancelar operação em andamento
+
+- Botão **✋ Cancelar** no Modo Iniciante (durante a análise) e **Cancelar operação** no
+  Avançado (aparece enquanto os botões estão travados). Manda `cancel` ao background.
+- Cancelamento cooperativo: `background/cancel.ts` (`beginOperation`/`throwIfCancelled`/
+  `CancelledError`). Checagens entre páginas da varredura, entre anúncios do "Analisar
+  selecionados" e entre lotes da IA; a chamada à IA em curso é abortada (`AbortSignal.any`).
+  A rolagem para via `stopScroll` no content script.
+- Ao cancelar, a aba volta à página original e o roteador responde `{ ok: false, cancelled: true }`
+  (o popup mostra "cancelada", não erro). Varrer/Analisar página **descartam** o resultado
+  parcial; "Analisar selecionados" mantém o que já foi salvo no DB.
+- "Análise rápida" não tem cancelamento (é instantânea).
+
+### 2026-09-18 (2) — Popup com Modo Iniciante / Avançado
+
+- **Modo Iniciante (padrão)** no popup: 1) escolher "Analisar esta página" ou "Varrer todas as
+  páginas"; 2) opções recolhidas ("Análise rápida", "Rolar automaticamente", "Destacar
+  anúncios", nº de páginas na varredura) com tooltip `?`; 3) "🚀 Começar análise" com spinner,
+  mensagem de sucesso/erro e link "Abrir painel de resultados". Linha "N anúncios serão
+  analisados" atualizada a cada 5 s / ao focar a janela (lê os cards da aba da OLX).
+- **Modo Avançado** = a interface anterior inteira (abas, seleção, Ver/Importar DB), só
+  escondida/mostrada; alternar não perde estado. O resultado do Iniciante também aparece na
+  lista do Avançado.
+- Preferências (modo, ação, opções) em `localStorage` — `src/popup/prefs.ts`.
+- Jargão trocado nos textos do Iniciante e em parte do Avançado (sem "IA"/"heurística"/"DB").
+- Arquivos novos: `src/popup/{beginner,mode,prefs}.ts`; alterados `popup.html`, `dom.ts`,
+  `index.ts`, `popup.css`.
+- **Decisão:** mantido TypeScript vanilla (o popup não é React e o CLAUDE.MD veda nova lib de
+  estado). Fica de fora: persistir a seleção do Avançado (a lista de itens não é persistida) e
+  contagem em tempo real durante a execução.
+
 ### 2026-09-18
 
 - **Preparação para publicação na Chrome Web Store.** Pedido: publicar a extensão na loja.

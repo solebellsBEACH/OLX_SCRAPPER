@@ -18,6 +18,10 @@ export function registerCrawlAction(): void {
       try {
         const response = await send("crawlListing", { maxPages, scrollEach, skipKnown, saveToDb });
         if (!response.ok) {
+          if (response.cancelled) {
+            setStatus("🚫 Operação cancelada.");
+            return;
+          }
           setStatus(`❌ ${response.error ?? "Erro desconhecido."}`);
           return;
         }

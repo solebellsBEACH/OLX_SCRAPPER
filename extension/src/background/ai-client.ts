@@ -2,6 +2,7 @@
 // da extensão (mesmo formato "chat/completions" da OpenAI para os dois).
 
 import { activeProviderConfig } from "./ai-config";
+import { cancelSignal } from "./cancel";
 
 interface AiSection {
   index?: number;
@@ -178,7 +179,7 @@ async function callAi(messages: Array<{ role: string; content: string }>): Promi
   let upstream: Response;
   try {
     upstream = await fetch(cfg.apiUrl, {
-      signal: AbortSignal.timeout(cfg.timeoutMs),
+      signal: AbortSignal.any([AbortSignal.timeout(cfg.timeoutMs), cancelSignal()]),
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -14,11 +14,90 @@
           <span class="brand-mark">🚗</span>
           <div class="brand-txt">
             <h1>OLX Workspace</h1>
-            <p class="sub">Só carros · categorização com IA</p>
+            <p class="sub">Analise anúncios de carros da OLX</p>
           </div>
         </div>
         <button id="openPanelBtn" class="btn btn-sm">🗂️ Abrir painel</button>
       </header>
+
+      <button id="pendingToast" class="toast" type="button" hidden>
+        <span class="toast-ico">⏳</span>
+        <span id="pendingToastText"></span>
+      </button>
+
+      <dialog id="pendingDialog" class="dialog">
+        <form method="dialog">
+          <h2>Análise detalhada</h2>
+          <p id="pendingDialogText"></p>
+          <div class="dialog-btns">
+            <button id="pendingNo" class="btn ghost" value="no">Agora não</button>
+            <button id="pendingYes" class="btn btn-primary" value="yes">Analisar agora</button>
+          </div>
+        </form>
+      </dialog>
+
+      <div class="mode-toggle" role="group" aria-label="Modo de uso">
+        <button id="modeBeginnerBtn" class="mode-btn" type="button" aria-pressed="true">Iniciante</button>
+        <button id="modeAdvancedBtn" class="mode-btn" type="button" aria-pressed="false">Avançado</button>
+      </div>
+
+      <main id="beginnerView" class="view">
+        <section class="card">
+          <div class="card-title">1 · O que você quer fazer?</div>
+          <div class="choices" role="radiogroup" aria-label="Tipo de análise">
+            <button id="choiceCurrent" class="choice" type="button" role="radio" aria-checked="true" data-action="current">
+              <span class="choice-ico">📄</span>
+              <span class="choice-txt"><strong>Analisar esta página</strong><span>Avalia os anúncios que você está vendo agora</span></span>
+            </button>
+            <button id="choiceAll" class="choice" type="button" role="radio" aria-checked="false" data-action="all">
+              <span class="choice-ico">🔄</span>
+              <span class="choice-txt"><strong>Varrer todas as páginas</strong><span>Passa por várias páginas de resultados, uma após a outra</span></span>
+            </button>
+          </div>
+        </section>
+
+        <section class="card">
+          <button id="optionsToggle" class="link-btn" type="button" aria-expanded="false" aria-controls="optionsPanel">
+            <span id="optionsToggleIco">+</span> <span>2 · Mostrar opções</span>
+          </button>
+          <div id="optionsPanel" class="options" hidden>
+            <label class="opt tip-row" id="quickRow">
+              <input type="checkbox" id="optQuick" />
+              <span>Análise rápida</span>
+              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Análise rápida" data-tip="Avaliação básica e rápida dos anúncios">?</span>
+            </label>
+            <label class="opt tip-row">
+              <input type="checkbox" id="optScroll" />
+              <span>Rolar automaticamente</span>
+              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Rolar automaticamente" data-tip="Carregar mais anúncios enquanto você navega">?</span>
+            </label>
+            <label class="opt tip-row">
+              <input type="checkbox" id="optIndicators" checked />
+              <span>Destacar anúncios</span>
+              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Destacar anúncios" data-tip="Colorir os anúncios destacados na página">?</span>
+            </label>
+            <label class="field tip-row" id="pagesRow" hidden>
+              <span>Páginas para varrer</span>
+              <input type="number" id="optPages" min="1" max="10" value="5" />
+              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Páginas para varrer" data-tip="Quantas páginas de resultados percorrer (no máximo 10)">?</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-title">3 · Pronto? Vamos lá</div>
+          <p id="beginnerCount" class="count-line" aria-live="polite"></p>
+          <button id="startBtn" class="btn btn-primary btn-lg" type="button">🚀 Começar análise</button>
+          <div id="beginnerStatus" class="b-status" role="status" aria-live="polite" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span id="beginnerStatusText"></span>
+          </div>
+          <button id="cancelBtn" class="btn ghost" type="button" hidden>✋ Cancelar</button>
+          <button id="openResultsBtn" class="link-btn" type="button" hidden>📊 Abrir painel de resultados</button>
+        </section>
+      </main>
+
+      <div id="advancedView" class="view" hidden>
 
       <nav class="tabs" role="tablist">
         <button id="tabCrawlBtn" class="tab-btn" role="tab" aria-selected="false" data-tab="crawl">
@@ -26,6 +105,9 @@
         </button>
         <button id="tabAnalyzeBtn" class="tab-btn" role="tab" aria-selected="true" data-tab="analyze">
           🔎 Analisar página
+        </button>
+        <button id="tabConfigBtn" class="tab-btn" role="tab" aria-selected="false" data-tab="config">
+          ⚙️ Config
         </button>
       </nav>
 
@@ -43,10 +125,11 @@
           <label class="opt">
             <input type="checkbox" id="scrollEach" checked />
             <span>Rolar cada página</span>
+            <span class="tip" tabindex="0" role="img" aria-label="Ajuda" data-tip="Carregar mais anúncios enquanto a página é lida">?</span>
           </label>
           <label class="opt">
             <input type="checkbox" id="skipKnown" checked />
-            <span>Pular os que já estão no DB</span>
+            <span>Pular os que já estão salvos</span>
           </label>
           <label class="opt">
             <input type="checkbox" id="saveToDb" checked />
@@ -57,26 +140,31 @@
 
       <section id="panelAnalyze" class="card" role="tabpanel">
         <div class="card-title">Analisar página atual</div>
-        <div class="actions">
+        <div class="actions actions-wrap">
           <button id="analyzeBtn" class="btn btn-primary">
             <span class="btn-ico">📊</span> Analisar página
           </button>
           <button id="quickAnalyzeBtn" class="btn">
             <span class="btn-ico">⚡</span> Análise rápida
           </button>
-          <button id="scrollBtn" class="btn">
-            <span class="btn-ico">⬇️</span> Auto-scroll
-          </button>
         </div>
-        <div class="actions">
+      </section>
+
+      <section id="panelConfig" class="card" role="tabpanel" hidden>
+        <div class="card-title">Ferramentas</div>
+        <div class="actions actions-wrap">
           <button id="showIndicatorsBtn" class="btn">
-            <span class="btn-ico">🟢</span> Exibir indicadores
+            <span class="btn-ico">🚫</span> Ocultar indicadores
+          </button>
+          <button id="loadPendingBtn" class="btn">
+            <span class="btn-ico">📥</span> Carregar pendentes do DB
           </button>
         </div>
+        <div class="card-title" style="margin-top:14px">Como funciona</div>
         <p class="card-hint">
-          Pinta os cards da própria página do OLX: <span class="dot dot-done"></span> verde + score
+          Destaca os anúncios na própria página da OLX: <span class="dot dot-done"></span> verde + score
           = já analisado a fundo · <span class="dot dot-quick"></span> azul tracejado + ⚡score =
-          "Análise rápida" (heurística local, sem IA) · <span class="dot dot-pending"></span>
+          "Análise rápida" · <span class="dot dot-pending"></span>
           amarelo = ainda aguarda. "Exibir indicadores" só confere o que já está salvo no DB (sem
           IA) — útil se a extensão foi recarregada com a aba já aberta e a marcação automática não
           pegou.
@@ -87,20 +175,16 @@
           estado de conservação de verdade (isso continua exigindo "Analisar página" ou "Analisar
           selecionados").
         </p>
-        <div class="actions">
-          <button id="loadPendingBtn" class="btn">
-            <span class="btn-ico">📥</span> Carregar pendentes do DB
-          </button>
-        </div>
         <p class="card-hint">
           "Analisar página" já grava um rascunho raso de cada carro novo no <code>db.json</code>
-          (não perde mais ao fechar a extensão). Este botão traz de volta pra lista os que
-          ainda não passaram por "Analisar selecionados" — de qualquer sessão anterior —,
+          (não perde mais ao fechar a extensão). "Carregar pendentes do DB" traz de volta pra lista
+          os que ainda não passaram por "Analisar selecionados" — de qualquer sessão anterior —,
           pra você selecionar e mandar analisar a fundo agora.
         </p>
       </section>
 
       <div id="status" role="status"></div>
+      <button id="cancelAdvBtn" class="btn btn-sm ghost" type="button" hidden>✋ Cancelar operação</button>
 
       <div id="toolbar" hidden>
         <label class="opt">
@@ -134,6 +218,7 @@
         <button id="prevBtn" class="btn btn-sm">‹ Anterior</button>
         <span id="pageInfo"></span>
         <button id="nextBtn" class="btn btn-sm">Próxima ›</button>
+      </div>
       </div>
     </div>
     <script src="popup.js"></script>

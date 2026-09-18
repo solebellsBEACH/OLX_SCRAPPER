@@ -1,3 +1,5 @@
+import { CancelledError, beginOperation, requestCancel } from "./cancel";
+import { getActiveOlxTab } from "./tabs";
 import { analyze } from "./actions/analyze";
 import { analyzeSelected } from "./actions/analyze-selected";
 import { autoScroll } from "./actions/auto-scroll";
@@ -19,7 +21,15 @@ export function registerMessageRouter(): void {
           return { ok: true, result: await analyze() };
         case "quickAnalyze":
           return { ok: true, result: await quickAnalyze() };
+        case "cancel": {
+          requestCancel();
+          // rolagem em curso roda no content script: pede para parar também
+          const tab = await getActiveOlxTab().catch(() => null);
+          if (tab) await chrome.tabs.sendMessage(tab.id, { action: "stopScroll" }).catch(() => {});
+          return { ok: true };
+        }
         case "autoScroll":
+          beginOperation();
           return { ok: true, result: await autoScroll() };
         case "analyzeSelected":
           return { ok: true, result: await analyzeSelected(message.targets ?? [], message.force ?? false) };
@@ -78,6 +88,10 @@ export function registerMessageRouter(): void {
     })()
       .then(sendResponse)
       .catch((error: unknown) => {
+        if (error instanceof CancelledError) {
+          sendResponse({ ok: false, cancelled: true, error: error.message });
+          return;
+        }
         const msg = error instanceof Error ? error.message : String(error);
         console.error("[OLX Workspace] Falha:", msg);
         sendResponse({ ok: false, error: msg });

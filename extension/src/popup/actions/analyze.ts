@@ -14,6 +14,10 @@ export function registerAnalyzeAction(): void {
       try {
         const response = await send("analyze");
         if (!response.ok) {
+          if (response.cancelled) {
+            setStatus("🚫 Operação cancelada.");
+            return;
+          }
           setStatus(`❌ ${response.error ?? "Erro desconhecido."}`);
           return;
         }

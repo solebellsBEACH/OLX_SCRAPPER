@@ -4,8 +4,15 @@ function reportScroll(text: string): void {
   });
 }
 
+let stopRequested = false;
+
+export function stopScroll(): void {
+  stopRequested = true;
+}
+
 export function scrollAutomatic(duration: number): Promise<number> {
   return new Promise<number>((resolve) => {
+    stopRequested = false;
     const startY = window.scrollY;
     const maxY = (): number =>
       Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
@@ -13,6 +20,11 @@ export function scrollAutomatic(duration: number): Promise<number> {
     let lastBucket = -1;
 
     const step = (now: number): void => {
+      if (stopRequested) {
+        reportScroll("Rolagem cancelada");
+        resolve(Math.round(window.scrollY));
+        return;
+      }
       const t = Math.min((now - start) / duration, 1);
       const target = maxY();
       window.scrollTo({ top: startY + (target - startY) * t, behavior: "auto" });

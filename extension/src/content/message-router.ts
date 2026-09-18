@@ -3,7 +3,7 @@ import { hideIndicators, markCards } from "./card-marking";
 import { hideLoading, showLoading } from "./loading-overlay";
 import { extractSections } from "./listing-extractor";
 import { extractPagination } from "./pagination-extractor";
-import { scrollAutomatic } from "./scroll";
+import { scrollAutomatic, stopScroll } from "./scroll";
 import type {
   AdPageResult,
   ContentMessage,
@@ -41,6 +41,12 @@ export function registerMessageRouter(): void {
         const ms = typeof message.duration === "number" && message.duration > 0 ? message.duration : 3000;
         void scrollAutomatic(ms).then(() => sendResponse({ ok: true }));
         return true; // resposta assíncrona
+      }
+
+      if (message.action === "stopScroll") {
+        stopScroll();
+        sendResponse({ ok: true });
+        return false;
       }
 
       if (message.action === "markCards") {

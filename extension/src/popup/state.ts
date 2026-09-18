@@ -8,8 +8,8 @@ export const state = {
   page: 0,
   selected: new Set<string>(),
   rowState: new Map<string, "running" | "done" | "error">(),
-  /** Estado do botão "Exibir/Ocultar indicadores" — só liga quando o usuário clica em exibir. */
-  indicatorsShown: false,
+  /** Estado do botão "Exibir/Ocultar indicadores". Começa ligado: a página já marca os cards sozinha. */
+  indicatorsShown: true,
 };
 
 /** itens ainda sem os dados da página (não passaram pelo "Analisar selecionados"). */

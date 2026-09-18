@@ -1,4 +1,5 @@
 import { analyzeSections } from "./ai-client";
+import { throwIfCancelled } from "./cancel";
 import { progress } from "./progress";
 import type { Card, Categoria } from "./types";
 
@@ -31,9 +32,11 @@ export async function categorizeInChunks(
   let anyOk = false;
   let lastError: string | undefined;
   for (let i = 0; i < cards.length; i += size) {
+    throwIfCancelled();
     const chunk = cards.slice(i, i + size);
     const label = `Lote ${Math.floor(i / size) + 1}/${Math.ceil(cards.length / size)} · anúncios ${i + 1}–${i + chunk.length} de ${cards.length}`;
     const { categorias, error } = await categorize(chunk, label);
+    throwIfCancelled();
     if (Array.isArray(categorias)) {
       out.push(...categorias.map((category, position) => {
         if (!category || typeof category !== "object") return category;

@@ -77,6 +77,7 @@ export interface InMessage {
     | "analyze"
     | "quickAnalyze"
     | "autoScroll"
+    | "cancel"
     | "analyzeSelected"
     | "crawlListing"
     | "getDb"

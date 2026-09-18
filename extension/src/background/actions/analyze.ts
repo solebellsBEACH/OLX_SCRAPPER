@@ -1,3 +1,4 @@
+import { beginOperation, throwIfCancelled } from "../cancel";
 import { categorizeInChunks } from "../ai-categorize";
 import { dbAll, dbUpsertMany } from "../db";
 import { markCardsOnPage } from "../indicators";
@@ -10,6 +11,7 @@ import type { AnalyzeResult, Card, DbRecord } from "../types";
 import { isCarro } from "../vehicle-filter";
 
 export async function analyze(): Promise<AnalyzeResult> {
+  beginOperation();
   const tab = await getActiveOlxTab();
   await injectContent(tab.id);
   await setPageLoading(tab.id, "Analisando anúncios...");
@@ -23,6 +25,7 @@ export async function analyze(): Promise<AnalyzeResult> {
 
     const { categorias, error } = await categorizeInChunks(cards);
     const raw = null;
+    throwIfCancelled();
 
     const merged = mergeItems(cards, categorias, db);
     const items = merged.filter((it) => isCarro(it.categoria));
