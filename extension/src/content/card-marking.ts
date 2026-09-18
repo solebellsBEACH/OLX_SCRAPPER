@@ -20,6 +20,11 @@ function ensureMarkStyle(): void {
       outline-offset: -3px;
       border-radius: 8px;
     }
+    section.olx-adcard[data-olxw-status="quick"] {
+      outline: 3px dashed #3b82f6 !important;
+      outline-offset: -3px;
+      border-radius: 8px;
+    }
     .olxw-score-badge {
       position: absolute;
       top: 6px;
@@ -60,6 +65,15 @@ export function isIndicatorsHidden(): boolean {
   return indicatorsHidden;
 }
 
+/**
+ * Prioridade de status pra decidir quem pode sobrescrever quem: um score da IA
+ * ("done") nunca é rebaixado por um "pending"/"quick" tardio (ex.: o auto-mark
+ * rodando de novo por causa de outra mutação da página); o heurístico
+ * ("quick") também não é apagado por um "pending" — só por "done" (IA de
+ * verdade) ou por outro "quick"/"done" mais recente.
+ */
+const STATUS_PRIORITY: Record<MarkItem["status"], number> = { pending: 0, quick: 1, done: 2 };
+
 export function markCards(marks: MarkItem[]): void {
   indicatorsHidden = false;
   ensureMarkStyle();
@@ -68,10 +82,13 @@ export function markCards(marks: MarkItem[]): void {
     const section = document.querySelector<HTMLElement>(`section.olx-adcard[data-olxw-id="${CSS.escape(mark.id)}"]`);
     if (!section) continue; // card não está (mais) visível nesta página
 
+    const currentStatus = section.getAttribute("data-olxw-status") as MarkItem["status"] | null;
+    if (currentStatus && STATUS_PRIORITY[currentStatus] > STATUS_PRIORITY[mark.status]) continue;
+
     section.setAttribute("data-olxw-status", mark.status);
 
     const existingBadge = section.querySelector<HTMLDivElement>(".olxw-score-badge");
-    const hasScore = mark.status === "done" && typeof mark.score === "number" && Number.isFinite(mark.score);
+    const hasScore = mark.status !== "pending" && typeof mark.score === "number" && Number.isFinite(mark.score);
     if (!hasScore) {
       existingBadge?.remove();
       continue;
@@ -82,8 +99,11 @@ export function markCards(marks: MarkItem[]): void {
     const tier = scoreTier(score);
     if (tier === "high") badge.removeAttribute("data-tier");
     else badge.setAttribute("data-tier", tier);
-    badge.textContent = `${score}`;
-    badge.title = `Score de condição estimado pela IA: ${score}/100`;
+    const isQuick = mark.status === "quick";
+    badge.textContent = isQuick ? `⚡${score}` : `${score}`;
+    badge.title = isQuick
+      ? `Score rápido (${score}/100) — estimado só com km/ano do card, sem IA.`
+      : `Score de condição estimado pela IA: ${score}/100`;
     if (!existingBadge) section.appendChild(badge);
   }
 }

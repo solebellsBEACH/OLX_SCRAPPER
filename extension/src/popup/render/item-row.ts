@@ -71,6 +71,9 @@ export function renderItem(it: Item): HTMLDivElement {
   else if (rowStateValue === "done" || it.deepAnalyzed) {
     body.appendChild(badge("db", "✔ analisado"));
     if (typeof score === "number") body.appendChild(scoreBadge(score));
+  } else if (it.categoria?.quick) {
+    body.appendChild(badge("run", "⚡ rápido (sem IA)"));
+    if (typeof score === "number") body.appendChild(scoreBadge(score));
   } else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB (raso)"));
 
   if (it.categoria?.kmSuspeito) {

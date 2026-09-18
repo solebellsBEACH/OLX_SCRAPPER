@@ -61,6 +61,9 @@
           <button id="analyzeBtn" class="btn btn-primary">
             <span class="btn-ico">📊</span> Analisar página
           </button>
+          <button id="quickAnalyzeBtn" class="btn">
+            <span class="btn-ico">⚡</span> Análise rápida
+          </button>
           <button id="scrollBtn" class="btn">
             <span class="btn-ico">⬇️</span> Auto-scroll
           </button>
@@ -72,9 +75,17 @@
         </div>
         <p class="card-hint">
           Pinta os cards da própria página do OLX: <span class="dot dot-done"></span> verde + score
-          = já analisado a fundo · <span class="dot dot-pending"></span> amarelo = ainda aguarda.
-          "Exibir indicadores" só confere o que já está salvo no DB (sem IA) — útil se a
-          extensão foi recarregada com a aba já aberta e a marcação automática não pegou.
+          = já analisado a fundo · <span class="dot dot-quick"></span> azul tracejado + ⚡score =
+          "Análise rápida" (heurística local, sem IA) · <span class="dot dot-pending"></span>
+          amarelo = ainda aguarda. "Exibir indicadores" só confere o que já está salvo no DB (sem
+          IA) — útil se a extensão foi recarregada com a aba já aberta e a marcação automática não
+          pegou.
+        </p>
+        <p class="card-hint">
+          "Análise rápida" varre os cards e dá um score 0-100 SÓ com o que já aparece no card
+          (km + ano do título) — sem chamar a IA, então é instantâneo, mas não sabe marca/modelo/
+          estado de conservação de verdade (isso continua exigindo "Analisar página" ou "Analisar
+          selecionados").
         </p>
         <div class="actions">
           <button id="loadPendingBtn" class="btn">

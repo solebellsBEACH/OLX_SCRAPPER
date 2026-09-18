@@ -14,6 +14,7 @@ import { registerDbViewActions } from "./actions/db-view";
 import { registerIndicatorsAction } from "./actions/indicators";
 import { registerLoadPendingAction } from "./actions/load-pending";
 import { registerOpenPanelAction } from "./actions/open-panel";
+import { registerQuickAnalyzeAction } from "./actions/quick-analyze";
 import { registerScrollAction } from "./actions/scroll";
 import { registerSelectionActions } from "./actions/selection";
 import { registerProgressListener } from "./progress-listener";
@@ -23,6 +24,7 @@ registerTabSwitcher();
 
 registerOpenPanelAction();
 registerAnalyzeAction();
+registerQuickAnalyzeAction();
 registerCrawlAction();
 registerScrollAction();
 registerIndicatorsAction();

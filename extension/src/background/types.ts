@@ -18,6 +18,8 @@ export interface AnalyzeResult {
   nonCar?: number;
   /** anúncios novos gravados (rasos) no db.json, pra não perder ao fechar a extensão. */
   savedToDb?: number;
+  /** só na "Análise rápida": quantos deram km suspeita (heurística local, sem IA). */
+  suspicious?: number;
 }
 
 export type DbRecord = Record<string, unknown> & { id: string; analyzedAt: number };
@@ -73,6 +75,7 @@ export interface ShowIndicatorsResult {
 export interface InMessage {
   action:
     | "analyze"
+    | "quickAnalyze"
     | "autoScroll"
     | "analyzeSelected"
     | "crawlListing"

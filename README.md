@@ -277,6 +277,24 @@ OLX_SCRAPPER/
 
 ### 2026-09-18
 
+- **Botão "⚡ Análise rápida" — score sem IA, só com os dados do card.** Pedido: varrer os
+  carros da página e dar um score usando só o que já está no componente do card (o
+  `<section class="olx-adcard">`), sem chamar a IA. Novo `background/quick-score.ts`
+  (`quickCategorize(card)`): lê `ano` do título (regex por ano de 4 dígitos), `motor`,
+  `carroceria`, `combustível` e `câmbio` dos `details[]` (mesmos `aria-label` que o
+  `listing-extractor.ts` já lê pra achar km/cor — ex.: `aria-label="Motor 1.5"`,
+  `aria-label="Carro tipo SUV"`), e calcula um score 0-100 puramente aritmético a partir de
+  km ÷ idade (mesma lógica de "km suspeita" que a IA já usa em `ai-client.ts`, só que sem
+  pedir pra IA calcular). Novo `background/actions/quick-analyze.ts` (ação `quickAnalyze`,
+  roteada em `message-router.ts`) extrai os cards, categoriza local e pinta na página
+  (`markCards`) com um **novo status "quick"**: borda azul tracejada + badge `⚡score`,
+  distinto do verde (IA, "done") e amarelo (pendente). `content/card-marking.ts` ganhou uma
+  prioridade de status (`pending < quick < done`) pra o auto-mark (que roda a cada mutação da
+  página, lendo só o DB) não apagar um badge "quick" recém-pintado nem um "done" da IA. Botão
+  novo em `popup.html` (ao lado de "Analisar página"), lista de resultados no popup também
+  mostra o badge `⚡ rápido (sem IA)` (`item-row.ts`). Marca/modelo/versão continuam vazios —
+  isso ainda exige IA ("Analisar página"/"Analisar selecionados"); a análise rápida é só uma
+  triagem instantânea de km/ano pra decidir o que vale a pena mandar pra IA depois.
 - **Indicador de carregamento na própria página do OLX.** Pedido: mostrar que a extensão está
   trabalhando direto na aba do OLX, não só no log da janela do popup. Novo módulo
   `extension/src/content/loading-overlay.ts` (`showLoading(text)` / `hideLoading()`): pinta um

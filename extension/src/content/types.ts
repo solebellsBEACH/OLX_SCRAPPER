@@ -28,8 +28,12 @@ export interface ContentMessage {
 /** Item da lista mandado pelo background após "Analisar página": borda + score. */
 export interface MarkItem {
   id: string;
-  /** "done" = já analisado a fundo (borda verde + score); "pending" = ainda aguarda. */
-  status: "done" | "pending";
+  /**
+   * "done" = já analisado a fundo pela IA (borda verde + score); "quick" =
+   * score heurístico da "Análise rápida" (borda azul tracejada, sem IA);
+   * "pending" = ainda aguarda.
+   */
+  status: "done" | "pending" | "quick";
   score?: number | null;
 }
 

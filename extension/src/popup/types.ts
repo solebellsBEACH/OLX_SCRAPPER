@@ -15,6 +15,8 @@ export interface Categoria {
   /** true = km muito baixa pra idade do carro (possível odômetro adulterado). */
   kmSuspeito?: boolean | null;
   kmSuspeitoMotivo?: string | null;
+  /** true = score veio da "Análise rápida" (heurística local, sem IA), não da IA. */
+  quick?: boolean;
 }
 
 export interface Item {
@@ -51,6 +53,8 @@ export interface AnalyzeResult {
   duplicates?: number;
   savedToDb?: number;
   saveError?: string;
+  /** só na "Análise rápida": quantos deram km suspeita (heurística local, sem IA). */
+  suspicious?: number;
   perPage?: Array<{
     page: number;
     novos: number;

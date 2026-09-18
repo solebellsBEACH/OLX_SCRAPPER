@@ -1,6 +1,7 @@
 import { analyze } from "./actions/analyze";
 import { analyzeSelected } from "./actions/analyze-selected";
 import { autoScroll } from "./actions/auto-scroll";
+import { quickAnalyze } from "./actions/quick-analyze";
 import { crawlListing } from "./actions/crawl-listing";
 import { loadPending } from "./actions/load-pending";
 import * as aiConfig from "./ai-config";
@@ -16,6 +17,8 @@ export function registerMessageRouter(): void {
       switch (message.action) {
         case "analyze":
           return { ok: true, result: await analyze() };
+        case "quickAnalyze":
+          return { ok: true, result: await quickAnalyze() };
         case "autoScroll":
           return { ok: true, result: await autoScroll() };
         case "analyzeSelected":

@@ -11,6 +11,7 @@ export const pageInfoEl = $<HTMLSpanElement>("pageInfo");
 export const toolbarEl = $<HTMLDivElement>("toolbar");
 export const dbDumpEl = $<HTMLPreElement>("dbDump");
 export const analyzeBtn = $<HTMLButtonElement>("analyzeBtn");
+export const quickAnalyzeBtn = $<HTMLButtonElement>("quickAnalyzeBtn");
 export const scrollBtn = $<HTMLButtonElement>("scrollBtn");
 export const showIndicatorsBtn = $<HTMLButtonElement>("showIndicatorsBtn");
 export const loadPendingBtn = $<HTMLButtonElement>("loadPendingBtn");

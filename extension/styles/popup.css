@@ -182,6 +182,10 @@ body.as-tab #app {
   background: #eab308;
 }
 
+.dot-quick {
+  background: #3b82f6;
+}
+
 /* ---- Cartões ---- */
 .card {
   background: var(--card);
