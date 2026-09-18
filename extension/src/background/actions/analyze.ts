@@ -12,7 +12,7 @@ import { isCarro } from "../vehicle-filter";
 
 export async function analyze(): Promise<AnalyzeResult> {
   beginOperation();
-  const tab = await getActiveOlxTab();
+  const tab = await getActiveOlxTab({ requireCarSearch: true });
   await injectContent(tab.id);
   await setPageLoading(tab.id, "Analisando anúncios...");
 

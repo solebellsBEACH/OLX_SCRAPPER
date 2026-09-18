@@ -11,7 +11,7 @@ import type { AnalyzeResult, Card, Item } from "../types";
  * marca/modelo/versão continuam vazios porque isso exige IA de verdade.
  */
 export async function quickAnalyze(): Promise<AnalyzeResult> {
-  const tab = await getActiveOlxTab();
+  const tab = await getActiveOlxTab({ requireCarSearch: true });
   await injectContent(tab.id);
   await setPageLoading(tab.id, "Análise rápida (sem IA)...");
 

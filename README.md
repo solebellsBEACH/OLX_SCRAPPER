@@ -275,6 +275,13 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-18 (9) — Exigência de busca de carros só no "Analisar página"
+
+`getActiveOlxTab` ganhou a opção `requireCarSearch`. O erro "Abra uma página de busca de carros do
+OLX…" agora vale só para **Analisar página** e **Análise rápida** (páginas abertas pelo usuário).
+As demais ações (varrer páginas, analisar selecionados, indicadores, rolagem), em que a própria
+extensão navega/abre páginas do OLX, aceitam qualquer aba do OLX.
+
 ### 2026-09-18 (8) — Painel web: usabilidade da Listagem, ajuda e responsividade
 
 Refactor de usabilidade do painel (`web/`), adaptado à stack existente (React + Tailwind, sem Zustand:

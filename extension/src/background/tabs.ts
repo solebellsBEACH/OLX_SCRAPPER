@@ -61,17 +61,27 @@ function isCarrosOlxUrl(url: string | undefined): boolean {
   return Boolean(OLX_BRASIL_RE.test(parsed.pathname) && q && isCarSearchQuery(q));
 }
 
-export async function getActiveOlxTab(): Promise<chrome.tabs.Tab & { id: number }> {
+/**
+ * Aba do OLX alvo da ação. Por padrão aceita qualquer aba do OLX; com
+ * `requireCarSearch` exige uma busca de carros (usado só por "Analisar página",
+ * onde o usuário é quem abriu a página).
+ */
+export async function getActiveOlxTab(
+  { requireCarSearch = false }: { requireCarSearch?: boolean } = {},
+): Promise<chrome.tabs.Tab & { id: number }> {
+  const accepts = (url: string | undefined): boolean =>
+    requireCarSearch ? isCarrosOlxUrl(url) : Boolean(url && OLX_URL_RE.test(url));
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (active?.id !== undefined && isCarrosOlxUrl(active.url)) {
+  if (active?.id !== undefined && accepts(active.url)) {
     return active as chrome.tabs.Tab & { id: number };
   }
   const olxTabs = await chrome.tabs.query({ url: "https://*.olx.com.br/*" });
-  const chosen =
-    olxTabs.find((t) => t.active && isCarrosOlxUrl(t.url)) ?? olxTabs.find((t) => isCarrosOlxUrl(t.url));
+  const chosen = olxTabs.find((t) => t.active && accepts(t.url)) ?? olxTabs.find((t) => accepts(t.url));
   if (!chosen || chosen.id === undefined) {
     throw new Error(
-      "Abra uma página de busca de carros do OLX (categoria 'carros-vans-e-utilitarios' ou busca em olx.com.br/brasil?q=... com um termo de veículo) e tente de novo.",
+      requireCarSearch
+        ? "Abra uma página de busca de carros do OLX (categoria 'carros-vans-e-utilitarios' ou busca em olx.com.br/brasil?q=... com um termo de veículo) e tente de novo."
+        : "Abra uma página do OLX e tente de novo.",
     );
   }
   return chosen as chrome.tabs.Tab & { id: number };
