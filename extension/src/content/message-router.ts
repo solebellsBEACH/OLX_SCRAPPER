@@ -1,5 +1,6 @@
 import { extractAdPage } from "./ad-page-extractor";
 import { hideIndicators, markCards } from "./card-marking";
+import { hideLoading, showLoading } from "./loading-overlay";
 import { extractSections } from "./listing-extractor";
 import { extractPagination } from "./pagination-extractor";
 import { scrollAutomatic } from "./scroll";
@@ -50,6 +51,18 @@ export function registerMessageRouter(): void {
 
       if (message.action === "hideIndicators") {
         hideIndicators();
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      if (message.action === "showLoading") {
+        showLoading(message.text ?? "Processando...");
+        sendResponse({ ok: true });
+        return false;
+      }
+
+      if (message.action === "hideLoading") {
+        hideLoading();
         sendResponse({ ok: true });
         return false;
       }

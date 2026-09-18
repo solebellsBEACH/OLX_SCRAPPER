@@ -1,4 +1,4 @@
-import { OLX_CARROS_RE, OLX_URL_RE } from "./constants";
+import { OLX_BRASIL_RE, OLX_CARROS_RE, OLX_URL_RE, isCarSearchQuery } from "./constants";
 
 export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -43,9 +43,22 @@ export function sameListing(a: string, b: string): boolean {
   }
 }
 
-/** Aba do OLX na categoria de carros (URL com `carros-vans-e-utilitarios`). */
+/**
+ * Aba do OLX que é uma busca de carros: categoria dedicada
+ * (`carros-vans-e-utilitarios`) ou busca nacional (`/brasil?q=...`) cujo
+ * termo pesquisado é reconhecidamente sobre veículos.
+ */
 function isCarrosOlxUrl(url: string | undefined): boolean {
-  return Boolean(url && OLX_URL_RE.test(url) && OLX_CARROS_RE.test(url));
+  if (!url || !OLX_URL_RE.test(url)) return false;
+  if (OLX_CARROS_RE.test(url)) return true;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const q = parsed.searchParams.get("q");
+  return Boolean(OLX_BRASIL_RE.test(parsed.pathname) && q && isCarSearchQuery(q));
 }
 
 export async function getActiveOlxTab(): Promise<chrome.tabs.Tab & { id: number }> {
@@ -58,7 +71,7 @@ export async function getActiveOlxTab(): Promise<chrome.tabs.Tab & { id: number 
     olxTabs.find((t) => t.active && isCarrosOlxUrl(t.url)) ?? olxTabs.find((t) => isCarrosOlxUrl(t.url));
   if (!chosen || chosen.id === undefined) {
     throw new Error(
-      "Abra uma página de carros do OLX (URL com 'carros-vans-e-utilitarios') e tente de novo.",
+      "Abra uma página de busca de carros do OLX (categoria 'carros-vans-e-utilitarios' ou busca em olx.com.br/brasil?q=... com um termo de veículo) e tente de novo.",
     );
   }
   return chosen as chrome.tabs.Tab & { id: number };

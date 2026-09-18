@@ -11,7 +11,9 @@ export type ContentAction =
   | "autoScroll"
   | "extractPagination"
   | "markCards"
-  | "hideIndicators";
+  | "hideIndicators"
+  | "showLoading"
+  | "hideLoading";
 
 export interface ContentMessage {
   action: ContentAction;
@@ -19,6 +21,8 @@ export interface ContentMessage {
   duration?: number;
   /** só para "markCards": estado + score de cada anúncio visível na página. */
   marks?: MarkItem[];
+  /** só para "showLoading": texto exibido no indicador fixo da página. */
+  text?: string;
 }
 
 /** Item da lista mandado pelo background após "Analisar página": borda + score. */

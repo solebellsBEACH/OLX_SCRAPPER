@@ -158,8 +158,9 @@ em matriz), **IA** (provedor ativo, apiUrl/model/timeout/chave por provedor, tes
 
 1. Clique no ícone da extensão → abre a **janela** do OLX Workspace.
 2. Deixe **uma aba do OLX** aberta numa página de listagem de carros — a URL precisa conter
-   `carros-vans-e-utilitarios` (categoria "Autos e peças › Carros, vans e utilitários"). Fora
-   dessa categoria a extensão não faz nada.
+   `carros-vans-e-utilitarios` (categoria "Autos e peças › Carros, vans e utilitários") **ou**
+   ser uma busca nacional `olx.com.br/brasil?q=...` cujo termo pesquisado seja reconhecido como
+   carro (marca/modelo/palavra-chave de veículo). Fora disso a extensão não faz nada.
 3. **📊 Executar Análise** → lê só a página atual e mostra a lista (log no console da janela).
    Ou **📚 Varrer páginas** (campo "até N" + "rolar cada página" + "pular os que já estão no
    DB" + "salvar no DB") → percorre a paginação do OLX (`?o=2`, `?o=3`, …) a partir da página
@@ -273,6 +274,35 @@ OLX_SCRAPPER/
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-09-18
+
+- **Indicador de carregamento na própria página do OLX.** Pedido: mostrar que a extensão está
+  trabalhando direto na aba do OLX, não só no log da janela do popup. Novo módulo
+  `extension/src/content/loading-overlay.ts` (`showLoading(text)` / `hideLoading()`): pinta um
+  badge fixo no canto superior direito da página (spinner + texto, mesmo estilo visual dos
+  badges de score já existentes — sem shadow DOM, `<style>` injetado em `document.head`). Duas
+  novas ações de content script (`showLoading`/`hideLoading`, `content/types.ts` +
+  `content/message-router.ts`) e um helper no background
+  (`extension/src/background/loading.ts`: `setPageLoading()`/`clearPageLoading()`, best-effort —
+  ignora se a aba já navegou e o content script ainda não recarregou). Ligado em
+  `actions/analyze.ts` ("Analisando anúncios..."), `actions/crawl-listing.ts` (texto por página
+  durante a varredura + "Categorizando N anúncio(s)..." depois de voltar pra listagem original)
+  e `actions/analyze-selected.ts` (texto por anúncio, alternando "Analisando..." /
+  "Categorizando..."), sempre limpo em `finally` para não ficar preso na tela se algo falhar.
+- **Aceita busca nacional `olx.com.br/brasil?q=...`, além da categoria de carros.** Pedido:
+  aceitar URLs como `https://www.olx.com.br/brasil?q=ford%20ka`, mas **bloquear** se a busca
+  não for de carro. `isCarrosOlxUrl()` (`extension/src/background/tabs.ts`) agora também aceita
+  URLs com path `/brasil` **se** o `q=` contiver marca/palavra-chave de veículo reconhecida
+  (nova função `isCarSearchQuery()` + set `CAR_SEARCH_KEYWORDS` em
+  `extension/src/background/constants.ts` — fiat, ford, volkswagen, "carro", "suv", etc.,
+  comparação sem acento/caixa). Busca nacional sem `q` ou com termo não reconhecido como carro
+  continua bloqueada, com a mesma mensagem de erro atualizada. **Limitação:** o
+  `content_scripts` declarativo do `manifest.json` (auto-mark de indicadores ao abrir a página)
+  ainda só casa `*carros-vans-e-utilitarios*` — não dá pra filtrar por `q=` num match pattern
+  declarativo — então em páginas `/brasil?q=...` os indicadores só aparecem clicando "Exibir
+  indicadores"; as ações principais (Executar Análise, Varrer páginas, Analisar selecionados)
+  funcionam normalmente, pois injetam o content script via `chrome.scripting.executeScript`.
 
 ### 2026-09-17
 

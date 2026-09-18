@@ -1,6 +1,7 @@
 import { categorize } from "../ai-categorize";
 import { dbAll, dbUpsert } from "../db";
 import { detailToSection, isDeepAnalyzed } from "../items";
+import { clearPageLoading, setPageLoading } from "../loading";
 import { progress } from "../progress";
 import { delay, getActiveOlxTab, injectContent, navigate } from "../tabs";
 import type { DbRecord, SelectedResult, Target } from "../types";
@@ -40,6 +41,7 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
       await delay(1800); // deixa o React popular a página
 
       await injectContent(tabId);
+      await setPageLoading(tabId, `Analisando anúncio ${pos}...`);
 
       let data: Record<string, unknown> | null = null;
       for (let attempt = 0; attempt < 3 && !data; attempt += 1) {
@@ -52,6 +54,7 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
       if (!data) throw new Error("não consegui ler os dados da página");
 
       progress(`Categorizando ${t.id} no DeepSeek (${pos})...`, { id: t.id, state: "running" });
+      await setPageLoading(tabId, `Categorizando anúncio ${pos}...`);
       const { categorias } = await categorize([detailToSection(t.id, data)]);
       const categoria = Array.isArray(categorias) ? (categorias[0] ?? null) : null;
 
@@ -78,6 +81,8 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
       const msg = err instanceof Error ? err.message : String(err);
       errors.push({ id: t.id, error: msg });
       progress(`✖ ${t.id}: ${msg}`, { id: t.id, state: "error" });
+    } finally {
+      await clearPageLoading(tabId);
     }
   }
 

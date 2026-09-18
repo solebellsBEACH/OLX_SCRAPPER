@@ -2,6 +2,7 @@ import { categorizeInChunks } from "../ai-categorize";
 import { CRAWL_MAX_PAGES } from "../constants";
 import { dbAll, dbUpsertMany } from "../db";
 import { itemToRecord, mergeItems } from "../items";
+import { clearPageLoading, setPageLoading } from "../loading";
 import { progress } from "../progress";
 import { delay, getActiveOlxTab, injectContent, navigate, pageOf, sameListing, withPage } from "../tabs";
 import type { Card, CrawlOptions, CrawlResult, DbRecord } from "../types";
@@ -52,67 +53,72 @@ export async function crawlListing({
   let duplicates = 0; // apareceram em mais de uma página
   const perPage: CrawlResult["perPage"] = [];
 
-  for (let p = startPage; p < startPage + pages; p += 1) {
-    const pageUrl = withPage(baseUrl, p);
-    const done = p - startPage;
+  try {
+    for (let p = startPage; p < startPage + pages; p += 1) {
+      const pageUrl = withPage(baseUrl, p);
+      const done = p - startPage;
 
-    progress(`Página ${p} (${done + 1}/${pages}): abrindo...`, { state: "running" });
+      progress(`Página ${p} (${done + 1}/${pages}): abrindo...`, { state: "running" });
 
-    const cur = await chrome.tabs.get(tabId).catch(() => null);
-    const alreadyThere = cur?.url && sameListing(cur.url, pageUrl) && pageOf(cur.url) === p;
-    if (!alreadyThere) {
-      await navigate(tabId, pageUrl, 25000);
+      const cur = await chrome.tabs.get(tabId).catch(() => null);
+      const alreadyThere = cur?.url && sameListing(cur.url, pageUrl) && pageOf(cur.url) === p;
+      if (!alreadyThere) {
+        await navigate(tabId, pageUrl, 25000);
+      }
+      await delay(1200); // deixa o React montar os cards
+
+      await injectContent(tabId);
+      await setPageLoading(tabId, `Varrendo página ${p} (${done + 1}/${pages})...`);
+      if (scrollEach) {
+        progress(`Página ${p} (${done + 1}/${pages}): rolando...`, { state: "running" });
+        await chrome.tabs.sendMessage(tabId, { action: "autoScroll", duration: 1400 }).catch(() => {});
+        await delay(400);
+      }
+
+      const extracted = (await chrome.tabs.sendMessage(tabId, { action: "extractSections" })) as
+        | { ok: boolean; count: number; cards: Card[] }
+        | undefined;
+      const cards = extracted?.cards ?? [];
+
+      if (cards.length === 0) {
+        progress(`Página ${p}: sem anúncios — fim da paginação.`);
+        break;
+      }
+
+      // 1) tira os que já apareceram nesta varredura (paginação do OLX repete cards)
+      const withId = cards.filter((c) => typeof c.id === "string") as Array<Card & { id: string }>;
+      const dupOnPage = withId.filter((c) => seen.has(c.id));
+      const notSeen = withId.filter((c) => !seen.has(c.id));
+      duplicates += dupOnPage.length;
+
+      if (notSeen.length === 0) {
+        progress(`Página ${p}: só anúncios repetidos — fim da paginação.`);
+        break;
+      }
+      for (const c of notSeen) seen.add(c.id);
+
+      // 2) tira os que já estão no db.json (já foram analisados antes)
+      const known = skipKnown ? notSeen.filter((c) => c.id in db) : [];
+      const novos = skipKnown ? notSeen.filter((c) => !(c.id in db)) : notSeen;
+      skipped += known.length;
+
+      allCards.push(...novos);
+      perPage.push({
+        page: p,
+        novos: novos.length,
+        noDb: known.length,
+        repetidos: dupOnPage.length,
+        total: allCards.length,
+      });
+      progress(
+        `Página ${p}: +${novos.length} novo(s)` +
+          (known.length ? ` · ${known.length} já no DB` : "") +
+          (dupOnPage.length ? ` · ${dupOnPage.length} repetido(s)` : "") +
+          ` · total ${allCards.length}`,
+      );
     }
-    await delay(1200); // deixa o React montar os cards
-
-    await injectContent(tabId);
-    if (scrollEach) {
-      progress(`Página ${p} (${done + 1}/${pages}): rolando...`, { state: "running" });
-      await chrome.tabs.sendMessage(tabId, { action: "autoScroll", duration: 1400 }).catch(() => {});
-      await delay(400);
-    }
-
-    const extracted = (await chrome.tabs.sendMessage(tabId, { action: "extractSections" })) as
-      | { ok: boolean; count: number; cards: Card[] }
-      | undefined;
-    const cards = extracted?.cards ?? [];
-
-    if (cards.length === 0) {
-      progress(`Página ${p}: sem anúncios — fim da paginação.`);
-      break;
-    }
-
-    // 1) tira os que já apareceram nesta varredura (paginação do OLX repete cards)
-    const withId = cards.filter((c) => typeof c.id === "string") as Array<Card & { id: string }>;
-    const dupOnPage = withId.filter((c) => seen.has(c.id));
-    const notSeen = withId.filter((c) => !seen.has(c.id));
-    duplicates += dupOnPage.length;
-
-    if (notSeen.length === 0) {
-      progress(`Página ${p}: só anúncios repetidos — fim da paginação.`);
-      break;
-    }
-    for (const c of notSeen) seen.add(c.id);
-
-    // 2) tira os que já estão no db.json (já foram analisados antes)
-    const known = skipKnown ? notSeen.filter((c) => c.id in db) : [];
-    const novos = skipKnown ? notSeen.filter((c) => !(c.id in db)) : notSeen;
-    skipped += known.length;
-
-    allCards.push(...novos);
-    perPage.push({
-      page: p,
-      novos: novos.length,
-      noDb: known.length,
-      repetidos: dupOnPage.length,
-      total: allCards.length,
-    });
-    progress(
-      `Página ${p}: +${novos.length} novo(s)` +
-        (known.length ? ` · ${known.length} já no DB` : "") +
-        (dupOnPage.length ? ` · ${dupOnPage.length} repetido(s)` : "") +
-        ` · total ${allCards.length}`,
-    );
+  } finally {
+    await clearPageLoading(tabId);
   }
 
   // reindexa para alinhar com a categorização
@@ -140,7 +146,9 @@ export async function crawlListing({
   }
 
   progress(`Categorizando ${allCards.length} anúncio(s) novo(s) no DeepSeek...`, { state: "running" });
-  const { categorias, error } = await categorizeInChunks(allCards);
+  await injectContent(tabId);
+  await setPageLoading(tabId, `Categorizando ${allCards.length} anúncio(s)...`);
+  const { categorias, error } = await categorizeInChunks(allCards).finally(() => clearPageLoading(tabId));
   const merged = mergeItems(allCards, categorias, db);
   // a extensão só trabalha com carros: descarta moto, caminhão, náutica, etc.
   const items = merged.filter((it) => isCarro(it.categoria));
