@@ -93,5 +93,14 @@ export function renderItem(it: Item): HTMLDivElement {
   }
 
   row.appendChild(body);
+
+  // O card inteiro é alvo de clique (o checkbox sozinho era pequeno demais); o link segue funcionando.
+  if (id) {
+    row.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("a") || target === cb) return;
+      cb.click();
+    });
+  }
   return row;
 }

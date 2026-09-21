@@ -10,11 +10,13 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { GitCompareArrows } from "lucide-react";
+import { GitCompareArrows, Trash2 } from "lucide-react";
 import type { AdRow } from "@/types";
 import { useDb } from "@/lib/useDb";
 import { applyFilters, useFilters } from "@/lib/useFilters";
 import { formatNumber } from "@/lib/format";
+import { isCarBrand } from "@/lib/brands";
+import { api } from "@/lib/api";
 import { PageHeader } from "@/components/Layout";
 import { ColumnHeader } from "@/components/data-table/column-header";
 import { FilterBar } from "@/components/filters/FilterBar";
@@ -48,9 +50,19 @@ export function Listing() {
   }, []);
 
   const marcas = useMemo(
-    () => [...new Set(rows.map((r) => r.marca).filter(Boolean) as string[])].sort(),
+    () => [...new Set(rows.map((r) => r.marca).filter(isCarBrand) as string[])].sort(),
     [rows],
   );
+  const emptyRows = useMemo(
+    () => rows.filter((r) => r.price == null && r.km == null && r.ano == null),
+    [rows],
+  );
+  async function removeEmpty() {
+    if (!confirm(`Remover ${emptyRows.length} anúncio(s) sem dados (sem preço, km e ano) da base?`)) return;
+    for (const r of emptyRows) await api.removeRecord(r.id);
+    setSelection({});
+    refetch();
+  }
   const anos = useMemo(
     () => [...new Set(rows.map((r) => r.ano).filter(Boolean) as number[])].sort((a, b) => b - a),
     [rows],
@@ -179,6 +191,19 @@ export function Listing() {
             anos={anos}
             suggestions={suggestions}
             right={
+              <>
+              {emptyRows.length > 0 && (
+                <Button
+                  size="md"
+                  variant="outline"
+                  className="h-[44px] w-full sm:h-8 sm:w-auto"
+                  onClick={removeEmpty}
+                  title="Remove anúncios sem preço, km e ano"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Remover sem dados ({emptyRows.length})
+                </Button>
+              )}
               <Button
                 size="md"
                 variant={canCompare ? "default" : "outline"}
@@ -190,6 +215,7 @@ export function Listing() {
                 <GitCompareArrows className="h-3 w-3" />
                 Comparar ({selectedIds.length})
               </Button>
+              </>
             }
           />
 

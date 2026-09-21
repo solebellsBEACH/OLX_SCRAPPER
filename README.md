@@ -273,6 +273,25 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-21 (4) — Comparador: rola até a análise da IA
+
+- Ao clicar em comparar com IA / métricas, a página rola suavemente até "Análise complementar da IA" (e de novo quando o resultado chega); respeita `prefers-reduced-motion`. Só typecheck.
+
+### 2026-09-21 (3) — Popup: itens mais fáceis de selecionar
+
+- Checkbox maior (22 px) com área de clique estendida até a borda do card, e o **card inteiro** agora alterna a seleção ao clicar (o link "Ver no OLX" continua abrindo normalmente). Só typecheck; não conferi no navegador.
+
+### 2026-09-21 (2) — `production.sh`: pacote para a Chrome Web Store
+
+- Novo `production.sh` (raiz): build limpo (extensão → painel), `validate:store` e gera `dist/olx-workspace-<versão>.zip` (versão lida do manifest, sem `.map`). Pré-requisito: `zip`. `dist/` entrou no `.gitignore`.
+
+### 2026-09-21 (1) — Correções: outliers na média, marcas válidas, análise no topo, limpar sem dados
+
+- **Média sem outliers** (`web/src/lib/rows.ts`): preços com 100% ou mais de variação (acima ou abaixo) da mediana do grupo não entram na média de mercado nem na média do Dashboard.
+- **Select de Marca validado** (`web/src/lib/brands.ts`): só aparecem marcas de carro conhecidas; lixo de outras categorias do OLX some do filtro.
+- **Análise e métricas no topo** da página do anúncio (`Detail.tsx`): o resumo vem antes da galeria.
+- **"Remover sem dados"** na Listagem: apaga (com confirmação) anúncios sem preço, km e ano.
+
 ### 2026-09-18 (14) — Animações simples de movimento no painel
 
 - **Troca de página:** conteúdo entra com fade + leve subida (`Layout.tsx`, chaveado por rota); menu

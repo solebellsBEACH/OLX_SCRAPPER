@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { Link, useSearchParams } from "react-router-dom";
 import { Brain, Check, ExternalLink, Gauge, Minus } from "lucide-react";
@@ -154,6 +154,14 @@ export function Compare() {
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Record<string, CarMetric> | null>(null);
+
+  // Rola até a análise da IA quando ela aparece (ao clicar) e de novo quando o resultado chega.
+  const aiRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!(comparing || compareError || ranking || loadingMetrics || metricsError || metrics)) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    aiRef.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }, [comparing, compareError, ranking, loadingMetrics, metricsError, metrics]);
 
   function carsInput(): CompareCarInput[] {
     return rows.map((r) => ({
@@ -408,7 +416,7 @@ export function Compare() {
 
       {/* Análise complementar da IA — texto livre, só depois dos dados estruturados */}
       {hasAiOutput && (
-        <section className="border border-border bg-surface">
+        <section ref={aiRef} className="scroll-mt-4 border border-border bg-surface">
           <p className="border-b border-border px-3 py-2 text-sm font-semibold">Análise complementar da IA</p>
           <div className="flex flex-col gap-4 p-3 text-sm">
             {comparing && <p className="text-muted">Aguardando a IA (pode levar um pouco)...</p>}

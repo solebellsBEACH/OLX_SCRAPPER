@@ -6,4 +6,4 @@ web/node_modules/.tmp/
 *.log
 db.json
 db.json.tmp
-prompt.md
+prompt.md/dist/

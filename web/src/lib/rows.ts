@@ -338,6 +338,26 @@ export function computeVehicleAnalysis(
   };
 }
 
+/** Variação (em %) a partir da qual um preço é tratado como outlier e fica fora das médias. */
+const MAX_AVG_DEVIATION_PERCENT = 100;
+
+/**
+ * Média que ignora outliers: descarta preços com 100% ou mais de variação (pra cima ou
+ * pra baixo) em relação à mediana do grupo.
+ */
+function robustMean(prices: number[]): { avg: number; count: number } | null {
+  if (prices.length === 0) return null;
+  const sorted = [...prices].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  if (median <= 0) return null;
+  const kept = prices.filter(
+    (p) => Math.abs(((p - median) / median) * 100) < MAX_AVG_DEVIATION_PERCENT,
+  );
+  if (kept.length === 0) return null;
+  return { avg: kept.reduce((a, b) => a + b, 0) / kept.length, count: kept.length };
+}
+
 export function toRows(db: Db): AdRow[] {
   const records = Object.values(db);
 
@@ -353,7 +373,8 @@ export function toRows(db: Db): AdRow[] {
   }
   const groupAvg = new Map<string, number>();
   for (const [key, arr] of groups) {
-    if (arr.length >= 2) groupAvg.set(key, arr.reduce((a, b) => a + b, 0) / arr.length);
+    const m = robustMean(arr);
+    if (m && m.count >= 2) groupAvg.set(key, m.avg);
   }
 
   // igual ao mapa acima, mas guardando id junto — usado pelo resumo de análise (v1), que
@@ -373,8 +394,9 @@ export function toRows(db: Db): AdRow[] {
     key: string,
   ): { avg: number; sampleSize: number } | null {
     const others = (groupEntries.get(key) ?? []).filter((e) => e.id !== id).map((e) => e.price);
-    if (others.length < MIN_MARKET_SAMPLE) return null;
-    return { avg: others.reduce((a, b) => a + b, 0) / others.length, sampleSize: others.length };
+    const m = robustMean(others);
+    if (!m || m.count < MIN_MARKET_SAMPLE) return null;
+    return { avg: m.avg, sampleSize: m.count };
   }
 
   return records
@@ -447,7 +469,7 @@ export function computeStats(rows: AdRow[]): DashboardStats {
   return {
     total: rows.length,
     withPrice: prices.length,
-    avgPrice: prices.length ? prices.reduce((a, b) => a + b, 0) / prices.length : null,
+    avgPrice: robustMean(prices)?.avg ?? null,
     medianPrice: median,
     priceDrops: rows.filter((r) => r.priceOld != null && r.price != null && r.priceOld > r.price)
       .length,

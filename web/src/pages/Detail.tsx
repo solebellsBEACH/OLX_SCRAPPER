@@ -119,6 +119,8 @@ export function Detail() {
         <p className="border border-border bg-surface p-3 text-sm text-muted">{msg}</p>
       )}
 
+      <VehicleSummary analysis={row.analysis} price={row.price} />
+
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
         {/* Galeria */}
         <div className="flex flex-col gap-2">
@@ -177,8 +179,6 @@ export function Detail() {
             <p>A <strong>condição estimada pela IA</strong> ajusta de -5 a +10 e <strong>km suspeita</strong> tira pontos. Rótulos: 85+ Excelente, 70+ Boa, 50+ Dentro do esperado, abaixo disso Pouco atrativa.</p>
             <p>A <strong>confiança</strong> diz o quanto dá para confiar na análise: sobe quando há preço, ano, km, marca/modelo e nota da IA, e quando há pelo menos 2 (idealmente 5+) anúncios para comparar. 75+ é Alta, 50+ Média.</p>
           </LearnNote>
-          <VehicleSummary analysis={row.analysis} price={row.price} />
-
           <Section title="Especificações">
             <p className="mb-2 text-xs text-subtle">Estimadas pela IA a partir do anúncio.</p>
             <LearnNote className="mb-3">
