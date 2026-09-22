@@ -273,6 +273,14 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-22 — Redireciona para busca de carros em página incompatível
+
+- Ao clicar no ícone da extensão numa aba que não é uma página de carros do OLX (`isCarrosOlxUrl`), a aba ativa é navegada para `https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios` antes de abrir o painel (`background/panel.ts`). Evita abrir o popup "solto" sem uma listagem válida pra operar. Só typecheck.
+
+### 2026-09-21 (5) — Modo Iniciante: removido "Mostrar opções"
+
+- Saíram os checkboxes Análise rápida / Rolar automaticamente / Destacar anúncios. Valores fixos: **análise rápida ligada, destaque ligado, rolagem automática desligada** (constantes em `popup/beginner.ts`). O campo "Páginas para varrer" continua, num card próprio que só aparece em "Varrer páginas". Prefs antigas no localStorage são ignoradas. Só typecheck.
+
 ### 2026-09-21 (4) — Comparador: rola até a análise da IA
 
 - Ao clicar em comparar com IA / métricas, a página rola suavemente até "Análise complementar da IA" (e de novo quando o resultado chega); respeita `prefers-reduced-motion`. Só typecheck.

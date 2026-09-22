@@ -48,7 +48,7 @@ export function sameListing(a: string, b: string): boolean {
  * (`carros-vans-e-utilitarios`) ou busca nacional (`/brasil?q=...`) cujo
  * termo pesquisado é reconhecidamente sobre veículos.
  */
-function isCarrosOlxUrl(url: string | undefined): boolean {
+export function isCarrosOlxUrl(url: string | undefined): boolean {
   if (!url || !OLX_URL_RE.test(url)) return false;
   if (OLX_CARROS_RE.test(url)) return true;
   let parsed: URL;

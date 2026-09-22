@@ -29,6 +29,9 @@ export function isCarSearchQuery(q: string): boolean {
 }
 export const PANEL_PATH = "popup.html?tab=1";
 
+/** Página de busca de carros para onde a extensão redireciona quando aberta em página incompatível. */
+export const OLX_CARROS_FALLBACK_URL = "https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios";
+
 /** Teto rígido de páginas por varredura, independente do que o usuário pedir. */
 export const CRAWL_MAX_PAGES = 10;
 

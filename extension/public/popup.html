@@ -61,32 +61,13 @@
           </div>
         </section>
 
-        <section class="card">
-          <button id="optionsToggle" class="link-btn" type="button" aria-expanded="false" aria-controls="optionsPanel">
-            <span id="optionsToggleIco">+</span> <span>2 · Mostrar opções</span>
-          </button>
-          <div id="optionsPanel" class="options" hidden>
-            <label class="opt tip-row" id="quickRow">
-              <input type="checkbox" id="optQuick" />
-              <span>Análise rápida</span>
-              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Análise rápida" data-tip="Avaliação básica e rápida dos anúncios">?</span>
-            </label>
-            <label class="opt tip-row">
-              <input type="checkbox" id="optScroll" />
-              <span>Rolar automaticamente</span>
-              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Rolar automaticamente" data-tip="Carregar mais anúncios enquanto você navega">?</span>
-            </label>
-            <label class="opt tip-row">
-              <input type="checkbox" id="optIndicators" checked />
-              <span>Destacar anúncios</span>
-              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Destacar anúncios" data-tip="Colorir os anúncios destacados na página">?</span>
-            </label>
-            <label class="field tip-row" id="pagesRow" hidden>
-              <span>Páginas para varrer</span>
-              <input type="number" id="optPages" min="1" max="10" value="5" />
-              <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Páginas para varrer" data-tip="Quantas páginas de resultados percorrer (no máximo 10)">?</span>
-            </label>
-          </div>
+        <section class="card" id="pagesCard" hidden>
+          <div class="card-title">2 · Quantas páginas?</div>
+          <label class="field tip-row" id="pagesRow">
+            <span>Páginas para varrer</span>
+            <input type="number" id="optPages" min="1" max="10" value="5" />
+            <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Páginas para varrer" data-tip="Quantas páginas de resultados percorrer (no máximo 10)">?</span>
+          </label>
         </section>
 
         <section class="card">

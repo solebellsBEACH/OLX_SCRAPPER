@@ -4,9 +4,6 @@ export type BeginnerAction = "current" | "all";
 export interface Prefs {
   mode: Mode;
   action: BeginnerAction;
-  quickAnalysis: boolean;
-  autoScroll: boolean;
-  showIndicators: boolean;
   maxPages: number;
 }
 
@@ -15,9 +12,6 @@ const KEY = "olx_popup_prefs";
 const DEFAULTS: Prefs = {
   mode: "beginner",
   action: "current",
-  quickAnalysis: false,
-  autoScroll: false,
-  showIndicators: true,
   maxPages: 5,
 };
 

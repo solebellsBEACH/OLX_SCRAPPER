@@ -8,15 +8,8 @@ import {
   choiceAll,
   choiceCurrent,
   openResultsBtn,
-  optIndicators,
   optPages,
-  optQuick,
-  optScroll,
-  optionsPanel,
-  optionsToggle,
-  optionsToggleIco,
-  pagesRow,
-  quickRow,
+  pagesCard,
   startBtn,
 } from "./dom";
 import { hidePendingToast, refreshPendingToast } from "./pending-toast";
@@ -29,6 +22,9 @@ import { state } from "./state";
 import type { AnalyzeResult } from "./types";
 
 const MAX_PAGES = 10;
+// Opções fixas (antes eram checkboxes): tudo ligado, menos a rolagem automática.
+const QUICK_ANALYSIS = true;
+const AUTO_SCROLL = false;
 let action: BeginnerAction = "current";
 let running = false;
 let cancelling = false;
@@ -104,10 +100,7 @@ function selectAction(next: BeginnerAction): void {
   ] as const) {
     btn.setAttribute("aria-checked", String(a === next));
   }
-  pagesRow.hidden = next !== "all";
-  // A análise rápida só vale para a página atual.
-  optQuick.disabled = next === "all";
-  quickRow.classList.toggle("is-disabled", next === "all");
+  pagesCard.hidden = next !== "all";
   savePrefs({ action: next });
   void refreshCount();
 }
@@ -115,14 +108,14 @@ function selectAction(next: BeginnerAction): void {
 type Outcome = AnalyzeResult | string | "cancelled";
 
 async function runCurrent(): Promise<Outcome> {
-  if (optScroll.checked) {
+  if (AUTO_SCROLL) {
     setBusy("Carregando mais anúncios...");
     const scrolled = await send("autoScroll");
     if (scrolled.cancelled) return "cancelled";
     if (!scrolled.ok) return scrolled.error ?? "Não foi possível rolar a página.";
   }
   setBusy("Analisando anúncios...");
-  const res = await send(optQuick.checked ? "quickAnalyze" : "analyze");
+  const res = await send(QUICK_ANALYSIS ? "quickAnalyze" : "analyze");
   if (res.cancelled) return "cancelled";
   if (!res.ok) return res.error ?? "Algo deu errado. Tente de novo.";
   return res.result ?? { count: 0, items: [] };
@@ -132,7 +125,7 @@ async function runAll(): Promise<Outcome> {
   setBusy(`Varrendo até ${plural(pages(), "página", "páginas")}... Mantenha esta janela aberta.`);
   const res = await send("crawlListing", {
     maxPages: pages(),
-    scrollEach: optScroll.checked,
+    scrollEach: AUTO_SCROLL,
     skipKnown: true,
     saveToDb: true,
   });
@@ -160,8 +153,7 @@ async function start(): Promise<void> {
   state.rowState.clear();
   await refreshDbFlags();
   renderPage();
-  if (!optIndicators.checked) await send("hideIndicators");
-  else state.indicatorsShown = true;
+  state.indicatorsShown = true;
 
   finish(
     "ok",
@@ -173,24 +165,11 @@ async function start(): Promise<void> {
 
 export function registerBeginnerMode(): void {
   const prefs = loadPrefs();
-  optQuick.checked = prefs.quickAnalysis;
-  optScroll.checked = prefs.autoScroll;
-  optIndicators.checked = prefs.showIndicators;
   optPages.value = String(prefs.maxPages);
 
   choiceCurrent.addEventListener("click", () => selectAction("current"));
   choiceAll.addEventListener("click", () => selectAction("all"));
 
-  optionsToggle.addEventListener("click", () => {
-    const open = optionsPanel.hidden;
-    optionsPanel.hidden = !open;
-    optionsToggle.setAttribute("aria-expanded", String(open));
-    optionsToggleIco.textContent = open ? "−" : "+";
-  });
-
-  optQuick.addEventListener("change", () => savePrefs({ quickAnalysis: optQuick.checked }));
-  optScroll.addEventListener("change", () => savePrefs({ autoScroll: optScroll.checked }));
-  optIndicators.addEventListener("change", () => savePrefs({ showIndicators: optIndicators.checked }));
   optPages.addEventListener("change", () => {
     optPages.value = String(pages());
     savePrefs({ maxPages: pages() });
