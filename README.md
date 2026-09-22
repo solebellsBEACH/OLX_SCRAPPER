@@ -273,6 +273,10 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-22 (3) — Aviso "Nenhuma IA configurada" atualiza sozinho
+
+- O toast "Nenhuma IA configurada" só reavaliava no `window.addEventListener("focus", ...)` do popup — como a Config de IA é feita no painel (aba/janela separada), configurar lá não focava a janela do popup, então o aviso só sumia depois de um refresh manual. Agora `ai-missing.ts` também escuta `chrome.storage.onChanged` na chave `olx.aiConfig` e reavalia na hora em que a config muda, venha de onde vier. Só typecheck + build.
+
 ### 2026-09-22 (2) — Tutorial guiado no popup + quantidade na análise rápida
 
 - **Tutorial guiado**: botão "🎓 Tutorial" no cabeçalho do popup roda um tour em 5 passos (spotlight sobre o elemento + card com explicação, Voltar/Próximo/Pular) cobrindo o alternador Iniciante/Avançado, os dois tipos de ação, a quantidade a analisar, o botão de começar e o "Abrir painel". Vem **habilitado por padrão** (`tourAuto: true` em `prefs.ts`) e dispara sozinho na primeira vez que a extensão é aberta; depois disso só volta pelo botão (`popup/tour.ts`).
