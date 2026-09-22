@@ -5,6 +5,12 @@ export interface Prefs {
   mode: Mode;
   action: BeginnerAction;
   maxPages: number;
+  /** quantos anúncios (do topo da página) entram na "análise rápida" do Modo Iniciante. */
+  quickCount: number;
+  /** tutorial passo a passo: roda sozinho ao abrir a extensão até o usuário terminar/pular uma vez. */
+  tourAuto: boolean;
+  /** já rodou (terminou ou foi pulado) alguma vez — não dispara mais sozinho, só pelo botão "Tutorial". */
+  tourSeen: boolean;
 }
 
 const KEY = "olx_popup_prefs";
@@ -13,6 +19,9 @@ const DEFAULTS: Prefs = {
   mode: "beginner",
   action: "current",
   maxPages: 5,
+  quickCount: 5,
+  tourAuto: true,
+  tourSeen: false,
 };
 
 /** Preferências da interface (localStorage; se estiver indisponível, usa os padrões). */

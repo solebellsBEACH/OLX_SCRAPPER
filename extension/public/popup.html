@@ -17,6 +17,7 @@
             <p class="sub">Analise anúncios de carros da OLX</p>
           </div>
         </div>
+        <button id="tourBtn" class="btn btn-sm" type="button" title="Ver o tutorial passo a passo de novo">🎓 Tutorial</button>
         <button id="openPanelBtn" class="btn btn-sm">🗂️ Abrir painel</button>
       </header>
 
@@ -67,6 +68,15 @@
             <span>Páginas para varrer</span>
             <input type="number" id="optPages" min="1" max="10" value="5" />
             <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Páginas para varrer" data-tip="Quantas páginas de resultados percorrer (no máximo 10)">?</span>
+          </label>
+        </section>
+
+        <section class="card" id="quickCountCard">
+          <div class="card-title">2 · Quantos anúncios?</div>
+          <label class="field tip-row" id="quickCountRow">
+            <span>Quantidade a analisar</span>
+            <input type="number" id="optQuickCount" min="1" max="50" value="5" />
+            <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Quantidade a analisar" data-tip="Quantos anúncios (do topo da página) entram na análise rápida, no máximo 50">?</span>
           </label>
         </section>
 
@@ -207,6 +217,23 @@
       </div>
       </div>
     </div>
+
+    <div id="tourOverlay" class="tour-overlay" hidden>
+      <div id="tourHighlight" class="tour-highlight"></div>
+      <div id="tourCard" class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+        <p id="tourStepLabel" class="tour-step-label"></p>
+        <h3 id="tourTitle"></h3>
+        <p id="tourText"></p>
+        <div class="tour-actions">
+          <button id="tourSkip" class="link-btn" type="button">Pular tutorial</button>
+          <div class="tour-actions-right">
+            <button id="tourBack" class="btn btn-sm" type="button">‹ Voltar</button>
+            <button id="tourNext" class="btn btn-primary btn-sm" type="button">Próximo ›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

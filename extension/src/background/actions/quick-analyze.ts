@@ -10,7 +10,7 @@ import type { AnalyzeResult, Card, Item } from "../types";
  * mas o score é só uma estimativa matemática de km/ano (ver `quick-score.ts`);
  * marca/modelo/versão continuam vazios porque isso exige IA de verdade.
  */
-export async function quickAnalyze(): Promise<AnalyzeResult> {
+export async function quickAnalyze(limit?: number): Promise<AnalyzeResult> {
   const tab = await getActiveOlxTab({ requireCarSearch: true });
   await injectContent(tab.id);
   await setPageLoading(tab.id, "Análise rápida (sem IA)...");
@@ -19,7 +19,8 @@ export async function quickAnalyze(): Promise<AnalyzeResult> {
     const extracted = (await chrome.tabs.sendMessage(tab.id, { action: "extractSections" })) as
       | { ok: boolean; count: number; cards: Card[] }
       | undefined;
-    const cards = extracted?.cards ?? [];
+    const allCards = extracted?.cards ?? [];
+    const cards = limit && limit > 0 ? allCards.slice(0, limit) : allCards;
 
     const items: Item[] = cards.map((card) => ({
       ...card,

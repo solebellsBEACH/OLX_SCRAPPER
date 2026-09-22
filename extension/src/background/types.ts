@@ -102,6 +102,8 @@ export interface InMessage {
   saveToDb?: boolean;
   /** só para "checkKnown": ids dos cards visíveis na página. */
   ids?: string[];
+  /** só para "quickAnalyze": limita a quantos primeiros cards analisar (sem limite = todos). */
+  limit?: number;
   /** só para "importDb": mapa { [id]: DbRecord } vindo de um db.json exportado. */
   db?: Record<string, DbRecord>;
   /** só para "removeRecord". */

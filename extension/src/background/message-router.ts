@@ -20,7 +20,7 @@ export function registerMessageRouter(): void {
         case "analyze":
           return { ok: true, result: await analyze() };
         case "quickAnalyze":
-          return { ok: true, result: await quickAnalyze() };
+          return { ok: true, result: await quickAnalyze(message.limit) };
         case "cancel": {
           requestCancel();
           // rolagem em curso roda no content script: pede para parar também

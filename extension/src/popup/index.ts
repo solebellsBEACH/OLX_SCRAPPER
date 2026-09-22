@@ -23,10 +23,12 @@ import { registerModeToggle } from "./mode";
 import { registerPendingToast } from "./pending-toast";
 import { registerProgressListener } from "./progress-listener";
 import { registerTabSwitcher } from "./render/tabs";
+import { registerTour } from "./tour";
 
 registerTabSwitcher();
 registerModeToggle();
 registerBeginnerMode();
+registerTour();
 
 registerOpenPanelAction();
 registerAiMissingToast();

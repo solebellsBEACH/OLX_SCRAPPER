@@ -273,6 +273,11 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-22 (2) — Tutorial guiado no popup + quantidade na análise rápida
+
+- **Tutorial guiado**: botão "🎓 Tutorial" no cabeçalho do popup roda um tour em 5 passos (spotlight sobre o elemento + card com explicação, Voltar/Próximo/Pular) cobrindo o alternador Iniciante/Avançado, os dois tipos de ação, a quantidade a analisar, o botão de começar e o "Abrir painel". Vem **habilitado por padrão** (`tourAuto: true` em `prefs.ts`) e dispara sozinho na primeira vez que a extensão é aberta; depois disso só volta pelo botão (`popup/tour.ts`).
+- **Quantidade na análise rápida**: Modo Iniciante ganhou um campo "Quantidade a analisar" (1–50, **padrão 5** na primeira vez) que limita quantos cards do topo da página entram na "Analisar esta página" — antes analisava todos os cards da página sem opção de limite. `quickAnalyze` no background agora aceita um `limit` opcional (`background/actions/quick-analyze.ts`); o Modo Avançado continua sem limite (chamada sem `limit` = analisa tudo, comportamento inalterado). Só typecheck + build.
+
 ### 2026-09-22 — Redireciona para busca de carros em página incompatível
 
 - Ao clicar no ícone da extensão numa aba que não é uma página de carros do OLX (`isCarrosOlxUrl`), a aba ativa é navegada para `https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios` antes de abrir o painel (`background/panel.ts`). Evita abrir o popup "solto" sem uma listagem válida pra operar. Só typecheck.

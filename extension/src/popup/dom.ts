@@ -46,6 +46,8 @@ export const choiceCurrent = $<HTMLButtonElement>("choiceCurrent");
 export const choiceAll = $<HTMLButtonElement>("choiceAll");
 export const optPages = $<HTMLInputElement>("optPages");
 export const pagesCard = $<HTMLElement>("pagesCard");
+export const optQuickCount = $<HTMLInputElement>("optQuickCount");
+export const quickCountCard = $<HTMLElement>("quickCountCard");
 export const beginnerCountEl = $<HTMLParagraphElement>("beginnerCount");
 export const startBtn = $<HTMLButtonElement>("startBtn");
 export const beginnerStatusEl = $<HTMLDivElement>("beginnerStatus");
@@ -61,3 +63,15 @@ export const pendingToastText = $<HTMLSpanElement>("pendingToastText");
 export const pendingDialog = $<HTMLDialogElement>("pendingDialog");
 export const pendingDialogText = $<HTMLParagraphElement>("pendingDialogText");
 export const pendingYes = $<HTMLButtonElement>("pendingYes");
+
+// Tutorial guiado
+export const tourBtn = $<HTMLButtonElement>("tourBtn");
+export const tourOverlay = $<HTMLDivElement>("tourOverlay");
+export const tourHighlight = $<HTMLDivElement>("tourHighlight");
+export const tourCard = $<HTMLDivElement>("tourCard");
+export const tourStepLabel = $<HTMLParagraphElement>("tourStepLabel");
+export const tourTitle = $<HTMLHeadingElement>("tourTitle");
+export const tourText = $<HTMLParagraphElement>("tourText");
+export const tourSkip = $<HTMLButtonElement>("tourSkip");
+export const tourBack = $<HTMLButtonElement>("tourBack");
+export const tourNext = $<HTMLButtonElement>("tourNext");

@@ -114,7 +114,7 @@ body.as-tab #app {
   letter-spacing: -0.01em;
 }
 
-.app-head #openPanelBtn {
+.app-head #tourBtn {
   margin-left: auto;
 }
 
@@ -895,4 +895,73 @@ button {
 .dialog-btns {
   display: flex;
   gap: 8px;
+}
+
+/* ---- Tutorial guiado (tour) ---- */
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.tour-highlight {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(15, 17, 21, 0.65);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: absolute;
+  z-index: 2001;
+  width: min(300px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: top 0.2s ease, left 0.2s ease;
+}
+
+.tour-step-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+
+.tour-card h3 {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+}
+
+.tour-card p#tourText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tour-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-actions-right .btn {
+  width: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-highlight, .tour-card { transition: none; }
 }

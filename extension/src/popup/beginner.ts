@@ -9,7 +9,9 @@ import {
   choiceCurrent,
   openResultsBtn,
   optPages,
+  optQuickCount,
   pagesCard,
+  quickCountCard,
   startBtn,
 } from "./dom";
 import { hidePendingToast, refreshPendingToast } from "./pending-toast";
@@ -22,6 +24,7 @@ import { state } from "./state";
 import type { AnalyzeResult } from "./types";
 
 const MAX_PAGES = 10;
+const MAX_QUICK_COUNT = 50;
 // Opções fixas (antes eram checkboxes): tudo ligado, menos a rolagem automática.
 const QUICK_ANALYSIS = true;
 const AUTO_SCROLL = false;
@@ -31,6 +34,7 @@ let cancelling = false;
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const pages = (): number => Math.max(1, Math.min(Number(optPages.value) || 5, MAX_PAGES));
+const quickCount = (): number => Math.max(1, Math.min(Number(optQuickCount.value) || 5, MAX_QUICK_COUNT));
 
 function setBusy(text: string | null): void {
   running = text !== null;
@@ -86,7 +90,8 @@ async function refreshCount(): Promise<void> {
   if (n === null) {
     beginnerCountEl.textContent = "Abra uma busca de carros na OLX para começar.";
   } else if (action === "current") {
-    beginnerCountEl.textContent = `${plural(n, "anúncio será analisado", "anúncios serão analisados")}`;
+    const limited = Math.min(n, quickCount());
+    beginnerCountEl.textContent = `${plural(limited, "anúncio será analisado", "anúncios serão analisados")}`;
   } else {
     beginnerCountEl.textContent = `Até ${n * pages()} anúncios serão analisados (${plural(pages(), "página", "páginas")})`;
   }
@@ -101,6 +106,7 @@ function selectAction(next: BeginnerAction): void {
     btn.setAttribute("aria-checked", String(a === next));
   }
   pagesCard.hidden = next !== "all";
+  quickCountCard.hidden = next !== "current";
   savePrefs({ action: next });
   void refreshCount();
 }
@@ -115,7 +121,10 @@ async function runCurrent(): Promise<Outcome> {
     if (!scrolled.ok) return scrolled.error ?? "Não foi possível rolar a página.";
   }
   setBusy("Analisando anúncios...");
-  const res = await send(QUICK_ANALYSIS ? "quickAnalyze" : "analyze");
+  const res = await send(
+    QUICK_ANALYSIS ? "quickAnalyze" : "analyze",
+    QUICK_ANALYSIS ? { limit: quickCount() } : {},
+  );
   if (res.cancelled) return "cancelled";
   if (!res.ok) return res.error ?? "Algo deu errado. Tente de novo.";
   return res.result ?? { count: 0, items: [] };
@@ -166,6 +175,7 @@ async function start(): Promise<void> {
 export function registerBeginnerMode(): void {
   const prefs = loadPrefs();
   optPages.value = String(prefs.maxPages);
+  optQuickCount.value = String(prefs.quickCount);
 
   choiceCurrent.addEventListener("click", () => selectAction("current"));
   choiceAll.addEventListener("click", () => selectAction("all"));
@@ -173,6 +183,12 @@ export function registerBeginnerMode(): void {
   optPages.addEventListener("change", () => {
     optPages.value = String(pages());
     savePrefs({ maxPages: pages() });
+    void refreshCount();
+  });
+
+  optQuickCount.addEventListener("change", () => {
+    optQuickCount.value = String(quickCount());
+    savePrefs({ quickCount: quickCount() });
     void refreshCount();
   });
 
