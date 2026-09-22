@@ -21,8 +21,8 @@ export function ResultCard({ row, selected, expanded, onSelect, onToggle }: Prop
   return (
     <article
       className={cn(
-        "flex flex-col overflow-hidden rounded-md border border-border bg-surface shadow-card transition-shadow duration-DEFAULT hover:shadow-card-hover",
-        selected && "border-accent bg-accent-weak",
+        "flex flex-col overflow-hidden rounded-md border border-border bg-surface transition-colors duration-DEFAULT",
+        selected ? "border-accent bg-accent-weak" : "hover:border-accent-border",
       )}
     >
       {row.thumb && (

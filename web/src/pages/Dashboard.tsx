@@ -310,7 +310,9 @@ function SummaryCard({
   return (
     <div className="border border-border bg-surface p-4">
       <p className="text-xs font-semibold text-muted">{label}</p>
-      <p className={cn("mt-1 text-xl tnum", accent && "text-accent")}>{value}</p>
+      <p className={cn("tnum mt-1 text-lg font-semibold tracking-tight", accent && "text-accent")}>
+        {value}
+      </p>
       {hint && <p className="mt-0.5 text-xs text-subtle">{hint}</p>}
     </div>
   );

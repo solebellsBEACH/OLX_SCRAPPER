@@ -13,19 +13,22 @@
     --fg: 26 26 26;
     --muted: 107 107 107;
     --subtle: 154 154 154;
-    --accent: 37 99 235;
+    /* Acento e semáforo derivados do Design.md (Apple ref.): Purchase Blue #0071e3,
+       Battery Green #00d959 (escurecido aqui p/ contraste em texto sobre branco),
+       New Orange #b64400. */
+    --accent: 0 113 227;
     --accent-fg: 255 255 255;
-    --accent-weak: 239 244 255;
-    --accent-border: 201 219 255;
-    --accent-hover: 29 78 216;
-    --accent-weak-hover: 219 231 255;
-    --ok: 21 128 61;
-    --ok-bg: 242 248 243;
-    --ok-bg-hover: 233 244 234;
-    --ok-border: 187 231 198;
-    --warn: 180 83 9;
-    --warn-bg: 253 247 236;
-    --warn-border: 242 220 174;
+    --accent-weak: 227 240 253;
+    --accent-border: 179 214 250;
+    --accent-hover: 0 88 178;
+    --accent-weak-hover: 210 231 251;
+    --ok: 0 148 64;
+    --ok-bg: 232 250 239;
+    --ok-bg-hover: 219 247 229;
+    --ok-border: 179 232 199;
+    --warn: 182 68 0;
+    --warn-bg: 255 243 232;
+    --warn-border: 250 208 173;
     --danger: 185 28 28;
     --danger-bg: 253 241 241;
     --danger-border: 242 201 201;
@@ -48,19 +51,22 @@
     --fg: 230 232 238;
     --muted: 160 167 180;
     --subtle: 123 131 145;
-    --accent: 96 165 250;
+    /* Mesma origem Design.md: Purchase Blue clareado p/ legibilidade como texto sobre
+       preto, Battery Green literal (feito pra telas escuras), Launch Orange + Ember
+       Black (badge de disponibilidade). */
+    --accent: 41 151 255;
     --accent-fg: 11 18 32;
-    --accent-weak: 21 35 61;
-    --accent-border: 37 64 110;
-    --accent-hover: 147 197 253;
-    --accent-weak-hover: 28 47 82;
-    --ok: 74 222 128;
-    --ok-bg: 16 40 26;
-    --ok-bg-hover: 21 51 32;
-    --ok-border: 31 90 53;
-    --warn: 251 191 36;
-    --warn-bg: 42 36 16;
-    --warn-border: 92 74 22;
+    --accent-weak: 14 38 66;
+    --accent-border: 34 74 122;
+    --accent-hover: 94 181 255;
+    --accent-weak-hover: 22 51 87;
+    --ok: 0 217 89;
+    --ok-bg: 12 43 24;
+    --ok-bg-hover: 16 54 29;
+    --ok-border: 27 92 50;
+    --warn: 255 121 27;
+    --warn-bg: 49 20 0;
+    --warn-border: 97 58 20;
     --danger: 248 113 113;
     --danger-bg: 42 20 20;
     --danger-border: 94 38 38;
@@ -117,13 +123,13 @@
   .stagger > *:nth-child(10) { animation-delay: 360ms; }
   .stagger > *:nth-child(11) { animation-delay: 400ms; }
   .stagger > *:nth-child(n + 12) { animation-delay: 440ms; }
-  /* Card que sobe 2px no hover. */
+  /* Card que sobe 2px no hover. Sem sombra (Design.md: profundidade vem de contraste
+     de superfície/borda, não de box-shadow). */
   .lift {
-    transition: transform 130ms ease-out, box-shadow 130ms ease-out, border-color 130ms ease-out;
+    transition: transform 130ms ease-out, border-color 130ms ease-out;
   }
   .lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
   }
   .row-opportunity {
     background: rgb(var(--ok-bg));

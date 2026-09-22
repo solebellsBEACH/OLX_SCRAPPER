@@ -25,8 +25,8 @@ export function ResultRow({ row, selected, expanded, onSelect, onToggle }: Props
       <tr
         onClick={onToggle}
         className={cn(
-          "cursor-pointer transition-shadow duration-DEFAULT hover:relative hover:shadow-card-hover",
-          selected && "bg-accent-weak",
+          "cursor-pointer transition-colors duration-DEFAULT",
+          selected ? "bg-accent-weak" : "hover:bg-bg",
         )}
       >
         <td className="w-[44px] px-3 pt-3" onClick={(e) => e.stopPropagation()}>

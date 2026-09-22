@@ -296,6 +296,42 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-09-22 (6) — Versão 1.0.2 + `.gitignore` corrigido pro `dist/` da raiz
+
+- **`manifest.json`/`extension/package.json` → `1.0.2`** (era `1.0.1`/`1.0.0`, dessincronizados)
+  pra poder subir a nova versão (tokens de design + testes + LICENSE) na Chrome Web Store —
+  a loja exige `version` maior que a última publicada. `./production.sh` rodou limpo
+  (`validate:store` OK) e gerou `dist/olx-workspace-1.0.2.zip`.
+- **Bug de `.gitignore` corrigido**: só `web/dist/` estava ignorado; o `dist/` da **raiz**
+  (onde `production.sh` grava o `.zip` pra Chrome Web Store) não estava — apesar da entrada
+  de 2026-09-21 (2) dizer que sim. Adicionado `/dist/` no `.gitignore` da raiz.
+
+### 2026-09-22 (5) — Tokens de cor/tipografia/raio a partir do `Design.md` (ref. Apple)
+
+- **Só os tokens, não o layout**: `Design.md` é um sistema de marketing (hero preto,
+  headlines de 64px, cards de 28px) — incompatível com um dashboard denso de tabelas/filtros.
+  Reaproveitado apenas paleta, forma de botão e tipografia de números, mantendo tabelas,
+  cards e densidade atuais intactos.
+- **Paleta (painel `web/` e popup da extensão)**: acento trocado de roxo/indigo para **Purchase
+  Blue** `#0071e3` (claro) / `#2997ff` (escuro, clareado p/ contraste sobre preto); sucesso
+  (`--ok`) para **Battery Green** `#00d959` (literal no escuro, escurecido p/ `#009440` no
+  claro por legibilidade em texto sobre branco); atenção (`--warn`) para **New Orange**
+  `#b64400` (claro) / **Launch Orange** `#ff791b` sobre **Ember Black** `#311400` (escuro).
+  Mesma paleta nos dois lugares (`web/src/index.css` e `extension/styles/popup.css`).
+- **Botão primário em pill** (`rounded-full`/`999px`, "Purchase Blue Pill Button" do
+  Design.md) — só o botão de ação principal (`Button` variant `default` no painel,
+  `.btn-primary` no popup); os demais controles mantêm o raio pequeno de sempre.
+- **Sem sombra em card/linha de tabela** (regra do Design.md: profundidade vem de contraste
+  de superfície/borda, não de `box-shadow`) — `ResultCard`, `ResultRow` e `.lift` passaram a
+  usar mudança de cor de borda/fundo no hover em vez de `shadow-card`/`shadow-card-hover`.
+  O FAB de ajuda (`HelpButton`) e o modal continuam com sombra (elementos flutuantes, não
+  "card").
+  - **KPI do Dashboard** (`SummaryCard`): número passou a `text-lg font-semibold
+  tracking-tight` — antes usava `text-xl`, que não existe na escala travada do
+  `tailwind.config.js` (só `xs/sm/base/lg`) e por isso não tinha nenhum tamanho aplicado.
+  Não visualizado no navegador nesta sessão (sem ferramenta de browser disponível) — conferir
+  visualmente antes de publicar. Só typecheck + build + testes.
+
 ### 2026-09-22 (4) — LICENSE, primeiros testes unitários e resumo em inglês no README
 
 - **`LICENSE` (MIT)** adicionada na raiz — o repositório é público no GitHub e estava sem

@@ -10,13 +10,15 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  "inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-sm font-semibold transition-[color,background-color,border-color,transform] duration-DEFAULT active:scale-95 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
+  "inline-flex items-center justify-center gap-1 whitespace-nowrap font-semibold transition-[color,background-color,border-color,transform] duration-DEFAULT active:scale-95 disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
 
+// Ação primária em pill (Design.md: "Purchase Blue Pill Button"); controles
+// secundários seguem o raio pequeno do resto da UI (tool-like, denso).
 const variants: Record<Variant, string> = {
-  default: "bg-accent text-accent-fg hover:bg-accent-hover",
-  outline: "border border-border bg-surface text-fg hover:bg-bg",
-  ghost: "text-fg hover:bg-bg",
-  danger: "border border-border bg-surface text-danger hover:bg-danger-hover",
+  default: "rounded-full bg-accent text-accent-fg hover:bg-accent-hover",
+  outline: "rounded-sm border border-border bg-surface text-fg hover:bg-bg",
+  ghost: "rounded-sm text-fg hover:bg-bg",
+  danger: "rounded-sm border border-border bg-surface text-danger hover:bg-danger-hover",
 };
 
 const sizes: Record<Size, string> = {

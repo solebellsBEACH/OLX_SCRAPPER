@@ -1,6 +1,7 @@
 node_modules/
 extension/build/
 web/dist/
+/dist/
 web/node_modules/.tmp/
 **/.env
 *.log
