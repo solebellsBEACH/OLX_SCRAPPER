@@ -1,5 +1,26 @@
 # OLX Workspace
 
+> 🇬🇧 **English summary** — the rest of this README is in Portuguese (the target users are
+> Brazilian car buyers), but here's what this project is:
+>
+> **OLX Workspace** is a Chrome extension (Manifest V3, TypeScript, no backend) that scrapes
+> car listings from [OLX](https://www.olx.com.br) (Brazil's largest classifieds site), sends
+> them to an LLM of your choice (OpenAI, DeepSeek, Gemini, Groq, Mistral, xAI, OpenRouter, or a
+> custom endpoint — your API key never leaves `chrome.storage.local`) to categorize each
+> listing (brand/model/year/engine/etc.) and filter out anything that isn't a passenger car,
+> then persists everything locally and surfaces it in a full **React + Vite dashboard** shipped
+> as an extension page: market-price comparison, outlier-aware averages, a side-by-side
+> comparator, and a guided "beginner mode" for non-technical users. Everything — scraping,
+> AI calls, storage, UI — runs client-side inside the extension; there's no server component.
+>
+> - **Stack:** TypeScript (strict) · Webpack (extension) · Vite + React + Tailwind + TanStack
+>   Table (panel) · Vitest (unit tests) · Manifest V3 service worker architecture.
+> - **Run it:** `./setup.sh` builds both the extension and the panel into `extension/build/`,
+>   then load that folder as an unpacked extension in `chrome://extensions`. See
+>   ["Como rodar"](#como-rodar) below for details, or [`production.sh`](production.sh) to
+>   package a Chrome Web Store–ready `.zip`.
+> - **License:** [MIT](LICENSE).
+
 > **Status atual:** funcional em ambiente de desenvolvimento (carregado como extensão sem
 > compactação). Listagem + categorização por IA + análise da página do anúncio + persistência
 > estão implementados e testados manualmente. **Tudo roda dentro da extensão** — sem proxy
@@ -258,7 +279,9 @@ OLX_SCRAPPER/
   se o OLX mudar o markup, cai no fallback (menos campos). Ajustar seletores conforme dumps
   reais do `detail` no `db.json`.
 - O service worker MV3 pode ser encerrado em lotes muito longos de "Analisar selecionados".
-- Sem testes automatizados ainda.
+- Cobertura de testes automatizados ainda é mínima (só as funções puras mais críticas —
+  `isCarro`, `robustMean`, `isCarBrand`; `npm test` em `extension/` e `web/`). Nada de UI,
+  integração com `chrome.*` ou fluxo ponta-a-ponta é testado ainda.
 - Categorização assume **veículos**; outras categorias do OLX não foram tratadas.
 - O recorte "só carros" depende do campo `tipo` que a **IA** infere. Se ela errar o `tipo`
   (ou não devolver), o filtro é permissivo: **sem `tipo` => trata como carro**. A lista de
@@ -272,6 +295,21 @@ OLX_SCRAPPER/
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-09-22 (4) — LICENSE, primeiros testes unitários e resumo em inglês no README
+
+- **`LICENSE` (MIT)** adicionada na raiz — o repositório é público no GitHub e estava sem
+  licença.
+- **Primeiros testes automatizados**, via `vitest` (dev dependency só, não entra no bundle):
+  `extension/src/background/vehicle-filter.test.ts` cobre `isCarro` (mantém carro, descarta
+  tipos em `NAO_CARRO`, é permissivo quando `tipo` falta/é desconhecido); `web/src/lib/
+  rows.test.ts` cobre `robustMean` (agora exportada) — média ignora preço com 100%+ de desvio
+  da mediana; `web/src/lib/brands.test.ts` cobre `isCarBrand` (normalização de acento/caixa,
+  rejeita lixo). `npm test` em cada pacote (`extension/`, `web/`). Não mudou nenhum
+  comportamento de produção, só cobertura do que já existia.
+- **Resumo em inglês no topo do README** — o resto do documento continua em português (público
+  é o usuário final brasileiro), mas quem chega pelo GitHub/LinkedIn sem ler PT-BR agora tem o
+  essencial (o que é, stack, como rodar) logo no início.
 
 ### 2026-09-22 (3) — Aviso "Nenhuma IA configurada" atualiza sozinho
 

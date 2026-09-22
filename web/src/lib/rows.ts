@@ -345,7 +345,7 @@ const MAX_AVG_DEVIATION_PERCENT = 100;
  * Média que ignora outliers: descarta preços com 100% ou mais de variação (pra cima ou
  * pra baixo) em relação à mediana do grupo.
  */
-function robustMean(prices: number[]): { avg: number; count: number } | null {
+export function robustMean(prices: number[]): { avg: number; count: number } | null {
   if (prices.length === 0) return null;
   const sorted = [...prices].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
