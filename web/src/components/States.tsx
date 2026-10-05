@@ -12,7 +12,7 @@ export function Loading({ label = "Carregando…" }: { label?: string }) {
 }
 
 export function Empty({
-  title = "Nenhum anúncio no DB ainda",
+  title = "Nenhum anúncio salvo ainda",
   hint,
 }: {
   title?: string;
@@ -23,7 +23,7 @@ export function Empty({
       <Inbox className="h-6 w-6 text-subtle" />
       <p className="text-sm font-semibold">{title}</p>
       <p className="max-w-[420px] text-sm text-muted">
-        {hint ?? "Colete anúncios pela extensão e analise os selecionados para preencher o db.json."}
+        {hint ?? "Abra uma busca de carros na OLX e use a extensão para analisar os anúncios — eles aparecem aqui."}
       </p>
     </div>
   );

@@ -13,7 +13,9 @@ import {
   pagesCard,
   quickCountCard,
   startBtn,
+  startHintEl,
 } from "./dom";
+import { isAiConfigured } from "./ai-missing";
 import { hidePendingToast, refreshPendingToast } from "./pending-toast";
 import { requestCancel } from "./actions/cancel";
 import { send } from "./messaging";
@@ -31,17 +33,25 @@ const AUTO_SCROLL = false;
 let action: BeginnerAction = "current";
 let running = false;
 let cancelling = false;
+/** Por que não dá pra começar agora (null = pode começar). Ver refreshCount(). */
+let blockReason: string | null = null;
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const pages = (): number => Math.max(1, Math.min(Number(optPages.value) || 5, MAX_PAGES));
 const quickCount = (): number => Math.max(1, Math.min(Number(optQuickCount.value) || 5, MAX_QUICK_COUNT));
+
+function applyStartState(): void {
+  startBtn.disabled = running || blockReason !== null;
+  startHintEl.hidden = running || blockReason === null;
+  startHintEl.textContent = blockReason ?? "";
+}
 
 function setBusy(text: string | null): void {
   running = text !== null;
   cancelBtn.hidden = !running;
   if (running) hidePendingToast();
   if (running && text !== null && !cancelling) cancelBtn.disabled = false;
-  startBtn.disabled = running;
+  applyStartState();
   startBtn.textContent = running ? "Analisando..." : "🚀 Começar análise";
   beginnerStatusEl.hidden = !running && !beginnerStatusEl.dataset.msg;
   beginnerStatusEl.classList.toggle("is-busy", running);
@@ -58,7 +68,8 @@ function finish(kind: "ok" | "error" | "cancel", text: string): void {
   cancelling = false;
   cancelBtn.hidden = true;
   void refreshPendingToast();
-  startBtn.disabled = false;
+  applyStartState();
+  void refreshCount();
   startBtn.textContent = "🚀 Começar análise";
   beginnerStatusEl.hidden = false;
   beginnerStatusEl.dataset.msg = "1";
@@ -85,10 +96,18 @@ async function countOnPage(): Promise<number | null> {
 
 async function refreshCount(): Promise<void> {
   if (running) return;
-  const n = await countOnPage();
+  // a análise rápida ("Analisar esta página") não usa IA; a varredura categoriza com IA
+  const [n, ai] = await Promise.all([countOnPage(), action === "all" ? isAiConfigured() : Promise.resolve(true)]);
   if (running) return;
-  if (n === null) {
-    beginnerCountEl.textContent = "Abra uma busca de carros na OLX para começar.";
+  blockReason =
+    n === null || n === 0
+      ? "Abra uma busca de carros na OLX para começar."
+      : ai === false
+        ? "Configure uma IA primeiro (aviso no topo) para varrer páginas."
+        : null;
+  applyStartState();
+  if (n === null || n === 0) {
+    beginnerCountEl.textContent = "";
   } else if (action === "current") {
     const limited = Math.min(n, quickCount());
     beginnerCountEl.textContent = `${plural(limited, "anúncio será analisado", "anúncios serão analisados")}`;
@@ -144,7 +163,7 @@ async function runAll(): Promise<Outcome> {
 }
 
 async function start(): Promise<void> {
-  if (running) return;
+  if (running || blockReason !== null) return;
   setBusy("Começando...");
   const outcome = await (action === "current" ? runCurrent() : runAll());
   if (outcome === "cancelled") {
@@ -206,6 +225,9 @@ export function registerBeginnerMode(): void {
 
   selectAction(prefs.action);
   window.addEventListener("focus", () => void refreshCount());
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && "olx.aiConfig" in changes) void refreshCount();
+  });
   setInterval(() => void refreshCount(), 5000);
 }
 

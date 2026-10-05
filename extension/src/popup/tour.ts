@@ -61,7 +61,8 @@ const steps: Step[] = [
 let index = 0;
 let previousMode: Mode | null = null;
 
-function place(): void {
+/** Mede o alvo do passo atual e posiciona o destaque e o card (sem rolar). */
+function position(): void {
   const target = steps[index].target();
   const rect = target.getBoundingClientRect();
   const pad = 6;
@@ -70,12 +71,6 @@ function place(): void {
   tourHighlight.style.width = `${rect.width + pad * 2}px`;
   tourHighlight.style.height = `${rect.height + pad * 2}px`;
 
-  tourStepLabel.textContent = `Passo ${index + 1} de ${steps.length}`;
-  tourTitle.textContent = steps[index].title;
-  tourText.textContent = steps[index].text;
-  tourBack.hidden = index === 0;
-  tourNext.textContent = index === steps.length - 1 ? "Concluir" : "Próximo ›";
-
   const cardRect = tourCard.getBoundingClientRect();
   const spaceBelow = window.innerHeight - rect.bottom;
   const top =
@@ -83,8 +78,22 @@ function place(): void {
       ? rect.bottom + 12
       : Math.max(12, rect.top - cardRect.height - 12);
   const left = Math.min(Math.max(12, rect.left), window.innerWidth - cardRect.width - 12);
-  tourCard.style.top = `${top}px`;
+  // nunca deixa o card sair pela parte de baixo da janela
+  tourCard.style.top = `${Math.max(12, Math.min(top, window.innerHeight - cardRect.height - 12))}px`;
   tourCard.style.left = `${left}px`;
+}
+
+/** Troca o texto do passo, traz o alvo pro centro da janela e só então posiciona. */
+function place(): void {
+  tourStepLabel.textContent = `Passo ${index + 1} de ${steps.length}`;
+  tourTitle.textContent = steps[index].title;
+  tourText.textContent = steps[index].text;
+  tourBack.hidden = index === 0;
+  tourNext.textContent = index === steps.length - 1 ? "Concluir" : "Próximo ›";
+
+  // o popup tem no máximo 600px: alvos como o "Começar análise" podem estar fora da tela
+  steps[index].target().scrollIntoView({ block: "center" });
+  requestAnimationFrame(position);
 }
 
 function finish(): void {
@@ -119,8 +128,15 @@ export function registerTour(): void {
   });
   tourSkip.addEventListener("click", finish);
   window.addEventListener("resize", () => {
-    if (!tourOverlay.hidden) place();
+    if (!tourOverlay.hidden) position();
   });
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (!tourOverlay.hidden) position();
+    },
+    { passive: true },
+  );
 
   const prefs = loadPrefs();
   if (prefs.tourAuto && !prefs.tourSeen) {

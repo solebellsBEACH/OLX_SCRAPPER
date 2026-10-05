@@ -25,7 +25,7 @@ export async function checkKnown(ids: string[]): Promise<Array<{ id: string; sta
 }
 
 /**
- * Ação do botão "Exibir indicadores": força a marcação (borda verde/amarela +
+ * Ação do botão "Exibir indicadores": força a marcação (borda verde/cinza +
  * score) na aba do OLX aberta AGORA, sem esperar a injeção automática do
  * content script — útil quando a extensão foi recarregada (ou a aba já
  * estava aberta antes de instalar/atualizar) e o `content_scripts` do
@@ -65,7 +65,7 @@ export async function hideIndicators(): Promise<void> {
 
 /**
  * Manda o content script pintar, DIRETO na página do OLX, a borda de cada
- * card visível: verde (já analisado a fundo, com o score) ou amarela (ainda
+ * card visível: verde (já analisado a fundo, com o score) ou cinza (ainda
  * aguarda o "Analisar selecionados"). Best-effort — se a aba já mudou de
  * página, simplesmente não encontra os cards e não faz nada.
  */

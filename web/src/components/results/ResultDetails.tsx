@@ -5,6 +5,8 @@ import { formatBRL, formatDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { HELP, HelpTip } from "@/components/ui/tooltip";
 import { LearnNote } from "@/components/learning/Learn";
+import { relevantAlerts } from "@/lib/rows";
+import { CONDITION_LABEL, OPPORTUNITY_TEXT, conditionText } from "@/components/VehicleAnalysisBadges";
 import { opportunityPhrase } from "./StatusBadge";
 
 function Item({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
@@ -22,18 +24,26 @@ function Item({ label, help, children }: { label: string; help?: string; childre
 /** Detalhes expandidos de um anúncio (usado pela linha da tabela e pelo card mobile). */
 export function ResultDetails({ row }: { row: AdRow }) {
   const a = row.analysis;
+  const alerts = relevantAlerts(a);
   const props = row.record.detail?.properties ?? [];
   return (
     <div className="flex animate-fade-in flex-col gap-4 motion-reduce:animate-none">
       <LearnNote title="Detalhes do anúncio">
-        <p><strong>Oportunidade</strong> é uma nota de 0 a 100 baseada principalmente no preço frente ao mercado, com ajustes pela condição estimada pela IA e pela quilometragem.</p>
+        <p><strong>Preço</strong> compara o valor pedido com a média de anúncios parecidos. <strong>Oportunidade</strong> é uma nota de 0 a 100 baseada principalmente no preço frente ao mercado, com ajustes pela condição estimada pela IA e pela quilometragem.</p>
+        <p><strong>{CONDITION_LABEL}</strong> é outra nota de 0 a 100: a condição do carro estimada pela IA lendo o anúncio. É o mesmo número do selo na página da OLX.</p>
         <p><strong>Mercado</strong> é o preço médio de outros anúncios da mesma marca, modelo e ano, e quantos anúncios entraram na conta. Com menos de 2 outros, não há comparação.</p>
         <p><strong>Alertas</strong> são pontos a conferir antes de decidir. <strong>Salvo em</strong> é quando o anúncio entrou na sua base.</p>
       </LearnNote>
       <dl className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-4">
-        <Item label="Oportunidade" help={HELP.oportunidade}>
+        <Item label="Preço" help={HELP.preco}>
           {opportunityPhrase(a)}
-          {a.opportunityScore != null && <span className="tnum text-subtle"> · {a.opportunityScore}/100</span>}
+        </Item>
+        <Item label="Oportunidade">
+          {a.opportunityLabel ? OPPORTUNITY_TEXT[a.opportunityLabel].short : "—"}
+          {a.opportunityScore != null && <span className="tnum text-subtle"> · nota {a.opportunityScore}/100</span>}
+        </Item>
+        <Item label={CONDITION_LABEL}>
+          <span className="tnum">{conditionText(row.record.categoria?.score)}</span>
         </Item>
         <Item label="Mercado" help={HELP.mercado}>
           {a.marketAveragePrice != null ? (
@@ -51,13 +61,13 @@ export function ResultDetails({ row }: { row: AdRow }) {
         <Item label="Salvo em">{formatDate(row.date)}</Item>
       </dl>
 
-      {a.alerts.length > 0 && (
+      {alerts.length > 0 && (
         <div>
           <p className="mb-1 flex items-center gap-1 text-xs font-semibold text-muted">
             Alertas <HelpTip text={HELP.alertas} />
           </p>
           <ul className="flex flex-col gap-1">
-            {a.alerts.map((al) => (
+            {alerts.map((al) => (
               <li key={al.type} className="flex items-start gap-1 text-sm text-warn">
                 <AlertTriangle aria-hidden className="mt-1 h-3 w-3 shrink-0" />
                 <span>

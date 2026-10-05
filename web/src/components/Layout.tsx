@@ -14,15 +14,17 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/listagem", label: "Listagem", icon: Table2, end: false },
   { to: "/comparador", label: "Comparador", icon: GitCompareArrows, end: false },
-  { to: "/db", label: "Config", icon: Settings, end: false },
+  { to: "/db", label: "Configurações", icon: Settings, end: false },
 ];
 
 export function Layout() {
   const { pathname } = useLocation();
   const onboarding = useOnboarding();
   return (
-    <div className="grid min-h-screen md:grid-cols-[184px_1fr]">
-      <aside className="animate-slide-in-left flex flex-col gap-2 border-b border-border bg-surface px-3 py-2 md:sticky md:top-0 md:h-screen md:gap-6 md:overflow-y-auto md:border-b-0 md:border-r md:py-4">
+    // grid-cols-1 (minmax(0,1fr)) + min-w-0: sem isso, abaixo de md a coluna implícita
+    // cresce até a largura do menu horizontal e a página inteira ganha rolagem lateral.
+    <div className="grid min-h-screen grid-cols-1 md:grid-cols-[184px_1fr]">
+      <aside className="animate-slide-in-left flex min-w-0 flex-col gap-2 border-b border-border bg-surface px-3 py-2 md:sticky md:top-0 md:h-screen md:gap-6 md:overflow-y-auto md:border-b-0 md:border-r md:py-4">
         <div className="hidden md:block">
           <p className="text-sm font-semibold">OLX Workspace</p>
           <p className="text-xs text-muted">Painel de análise</p>
@@ -83,7 +85,7 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 className="text-lg font-semibold">{title}</h1>
-      <div className="flex items-center gap-2">{children}</div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
     </div>
   );
 }

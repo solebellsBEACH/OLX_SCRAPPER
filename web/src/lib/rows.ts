@@ -10,6 +10,7 @@ import type {
   VehicleSignal,
 } from "@/types";
 import { parseKm, parsePrice } from "./format";
+import { isGoodDeal } from "./colors";
 
 // --- score de oportunidade/confiança v1: constantes nomeadas ---------------------------
 // Ver CLAUDE.md "Primary metrics"/"Status semantics". Cada ajuste é um número fixo,
@@ -87,6 +88,23 @@ const OPPORTUNITY_LABEL_FAIR = 50;
 
 const CONFIDENCE_LABEL_HIGH = 75;
 const CONFIDENCE_LABEL_MEDIUM = 50;
+/** sem comparação de mercado a confiança nunca passa de "Média" — o preço não foi checado. */
+const CONFIDENCE_MAX_WITHOUT_MARKET = CONFIDENCE_LABEL_HIGH - 1;
+
+/**
+ * Alertas sobre a própria base (não sobre o veículo): não contam como "alerta do carro"
+ * em nenhuma tela — viram nota neutra. Use sempre relevantAlerts() pra contar/listar alertas.
+ */
+export const INFORMATIONAL_ALERT_TYPES = new Set(["insufficient_market_sample"]);
+
+export function isInformationalAlert(a: VehicleAlert): boolean {
+  return INFORMATIONAL_ALERT_TYPES.has(a.type);
+}
+
+/** Alertas que de fato dizem respeito ao veículo (sem os informativos sobre a base). */
+export function relevantAlerts(analysis: VehicleAnalysisSummary): VehicleAlert[] {
+  return analysis.alerts.filter((a) => !isInformationalAlert(a));
+}
 
 function prop(rec: DbRecord, label: string): string | null {
   const p = rec.detail?.properties?.find(
@@ -300,7 +318,10 @@ export function computeVehicleAnalysis(
   const marketConfidence = computeMarketConfidence(hasMarketSample ? market : null);
   const confidence = Math.max(
     0,
-    Math.min(100, Math.round(CONFIDENCE_BASELINE + dataConfidence + marketConfidence)),
+    Math.min(
+      hasMarketSample ? 100 : CONFIDENCE_MAX_WITHOUT_MARKET,
+      Math.round(CONFIDENCE_BASELINE + dataConfidence + marketConfidence),
+    ),
   );
 
   const opportunityLabel: VehicleAnalysisSummary["opportunityLabel"] =
@@ -361,30 +382,16 @@ export function robustMean(prices: number[]): { avg: number; count: number } | n
 export function toRows(db: Db): AdRow[] {
   const records = Object.values(db);
 
-  // média de preço por marca+modelo+ano (só grupos com 2+ preços válidos)
-  const groups = new Map<string, number[]>();
-  for (const rec of records) {
-    const price = parsePrice(rec.detail?.price);
-    if (price == null) continue;
-    const key = groupKey(rec.categoria?.marca ?? null, rec.categoria?.modelo ?? null, recordAno(rec));
-    const arr = groups.get(key) ?? [];
-    arr.push(price);
-    groups.set(key, arr);
-  }
-  const groupAvg = new Map<string, number>();
-  for (const [key, arr] of groups) {
-    const m = robustMean(arr);
-    if (m && m.count >= 2) groupAvg.set(key, m.avg);
-  }
-
-  // igual ao mapa acima, mas guardando id junto — usado pelo resumo de análise (v1), que
-  // exige pelo menos 2 OUTROS anúncios com preço válido no grupo (exclui o próprio anúncio
-  // da média, pra não enviesar a comparação).
+  // preços por marca+modelo+ano, com id — usado pelo resumo de análise (v1), que exige
+  // pelo menos 2 OUTROS anúncios com preço válido no grupo (exclui o próprio anúncio da
+  // média, pra não enviesar a comparação). A chave usa a mesma marca da linha (IA, ou a
+  // propriedade "Marca" do anúncio), senão o grupo do mercado e o da linha divergem.
   const groupEntries = new Map<string, Array<{ id: string; price: number }>>();
   for (const rec of records) {
     const price = parsePrice(rec.detail?.price);
     if (price == null) continue;
-    const key = groupKey(rec.categoria?.marca ?? null, rec.categoria?.modelo ?? null, recordAno(rec));
+    const marca = rec.categoria?.marca ?? prop(rec, "Marca");
+    const key = groupKey(marca, rec.categoria?.modelo ?? null, recordAno(rec));
     const arr = groupEntries.get(key) ?? [];
     arr.push({ id: rec.id, price });
     groupEntries.set(key, arr);
@@ -409,7 +416,7 @@ export function toRows(db: Db): AdRow[] {
       const price = parsePrice(rec.detail?.price);
       const priceOld = parsePrice(rec.detail?.priceOld ?? rec.detail?.oldPrice ?? null);
       const key = groupKey(marca, modelo, ano);
-      const avg = groupAvg.get(key);
+      const analysis = computeVehicleAnalysis(rec, price, ano, km, marca, modelo, marketComparison(rec.id, key));
       return {
         id: rec.id,
         url: rec.url ?? rec.detail?.url,
@@ -426,11 +433,21 @@ export function toRows(db: Db): AdRow[] {
         location: rec.detail?.location ?? null,
         date: recordDate(rec),
         thumb: rec.detail?.images?.[0] ?? null,
-        opportunity: price != null && avg != null && price < avg,
-        analysis: computeVehicleAnalysis(rec, price, ano, km, marca, modelo, marketComparison(rec.id, key)),
+        opportunity: isGoodDeal(analysis),
+        analysis,
       };
     })
     .sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+}
+
+/**
+ * Linhas de ids específicos, tiradas das linhas da base INTEIRA (useDb().rows). Detalhe e
+ * Comparador usam isto em vez de chamar toRows() com parte da base — senão a média de
+ * mercado seria calculada só com os anúncios daquela tela e o veredicto mudaria.
+ */
+export function rowsByIds(rows: AdRow[], ids: string[]): AdRow[] {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return ids.map((id) => byId.get(id)).filter((r): r is AdRow => r != null);
 }
 
 export interface DashboardStats {

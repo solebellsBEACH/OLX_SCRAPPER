@@ -9,6 +9,8 @@ interface Props {
   total: number;
   onPage: (p: number) => void;
   onPageSize?: (n: number) => void;
+  /** rótulo do <nav>: precisa ser único quando há mais de uma paginação na tela */
+  label?: string;
   className?: string;
 }
 
@@ -27,7 +29,7 @@ function pageWindow(page: number, count: number): (number | "…")[] {
 const btn =
   "inline-flex h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-sm border border-border bg-surface px-3 text-sm transition-colors duration-DEFAULT hover:bg-bg disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
 
-export function Pagination({ page, pageCount, pageSize, total, onPage, onPageSize, className }: Props) {
+export function Pagination({ page, pageCount, pageSize, total, onPage, onPageSize, label = "Paginação", className }: Props) {
   const first = total === 0 ? 0 : page * pageSize + 1;
   const last = Math.min((page + 1) * pageSize, total);
   const go = (p: number) => {
@@ -36,7 +38,7 @@ export function Pagination({ page, pageCount, pageSize, total, onPage, onPageSiz
   };
 
   return (
-    <nav aria-label="Paginação" className={cn("flex flex-col items-center gap-2", className)}>
+    <nav aria-label={label} className={cn("flex flex-col items-center gap-2", className)}>
       {pageCount > 1 && (
         <div className="flex flex-wrap items-center justify-center gap-1">
           <button type="button" className={btn} disabled={page === 0} onClick={() => go(page - 1)}>

@@ -50,6 +50,7 @@ export const optQuickCount = $<HTMLInputElement>("optQuickCount");
 export const quickCountCard = $<HTMLElement>("quickCountCard");
 export const beginnerCountEl = $<HTMLParagraphElement>("beginnerCount");
 export const startBtn = $<HTMLButtonElement>("startBtn");
+export const startHintEl = $<HTMLParagraphElement>("startHint");
 export const beginnerStatusEl = $<HTMLDivElement>("beginnerStatus");
 export const beginnerStatusText = $<HTMLSpanElement>("beginnerStatusText");
 export const openResultsBtn = $<HTMLButtonElement>("openResultsBtn");

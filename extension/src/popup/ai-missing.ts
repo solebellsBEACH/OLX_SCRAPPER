@@ -11,11 +11,17 @@ import { send } from "./messaging";
 
 const STORAGE_KEY = "olx.aiConfig";
 
-async function refresh(): Promise<void> {
+/** true = há IA ativa com chave (ou endpoint próprio); null = não deu pra consultar. */
+export async function isAiConfigured(): Promise<boolean | null> {
   const res = await send("getAiConfig");
+  if (!res.ok) return null;
   const config = res.config;
   const active = config?.providers.find((p) => p.id === config.activeId);
-  aiMissingToast.hidden = !res.ok || Boolean(active && (active.hasKey || active.presetId === "custom"));
+  return Boolean(active && (active.hasKey || active.presetId === "custom"));
+}
+
+async function refresh(): Promise<void> {
+  aiMissingToast.hidden = (await isAiConfigured()) !== false;
 }
 
 export function registerAiMissingToast(): void {

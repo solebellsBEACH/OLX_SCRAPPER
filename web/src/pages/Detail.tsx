@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useDb } from "@/lib/useDb";
-import { toRows } from "@/lib/rows";
+import { rowsByIds } from "@/lib/rows";
 import { formatBRL, formatDate, formatKm } from "@/lib/format";
 import { imgFallback, proxiedImg } from "@/lib/img";
 import type { AdCategoria } from "@/types";
@@ -17,13 +17,14 @@ import { VehicleSummary } from "@/components/VehicleSummary";
 export function Detail() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { db, status, error, refetch } = useDb();
+  const { db, rows, status, error, refetch } = useDb();
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState<null | "analyze" | "remove">(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   const record = db[id];
-  const row = useMemo(() => (record ? toRows({ [id]: record })[0] : null), [db, id, record]);
+  // mesma linha da Listagem (média de mercado calculada com a base inteira)
+  const row = useMemo(() => rowsByIds(rows, [id])[0] ?? null, [rows, id]);
 
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorBox message={error ?? "Erro"} onRetry={refetch} />;
@@ -68,7 +69,7 @@ export function Detail() {
   }
 
   async function remove() {
-    if (!confirm("Remover este anúncio do db.json?")) return;
+    if (!confirm("Remover este anúncio da sua lista? Não dá para desfazer.")) return;
     setBusy("remove");
     try {
       await api.removeRecord(id);
@@ -98,7 +99,7 @@ export function Detail() {
         </Button>
         <Button size="sm" variant="danger" disabled={busy !== null} onClick={remove}>
           <Trash2 className="h-3 w-3" />
-          Remover do DB
+          Remover da lista
         </Button>
       </PageHeader>
 
@@ -108,18 +109,18 @@ export function Detail() {
         can={[
           "\"Abrir no OLX\": vai ao anúncio original.",
           "\"Reanalisar\": abre o anúncio de novo, extrai os dados e pede outra categorização à IA (use se a análise veio incompleta).",
-          "\"Remover do DB\": apaga este carro da sua base (não dá para desfazer).",
+          "\"Remover da lista\": apaga este carro dos seus anúncios salvos (não dá para desfazer).",
           "Clicar nas miniaturas para trocar a foto grande.",
           "Abrir \"Ver como essa análise foi calculada\" para ver a conta passo a passo.",
         ]}
-        read="O preço riscado é o preço anterior do anúncio (houve queda). A etiqueta “oportunidade” aparece quando a análise considera o negócio atrativo."
+        read="O preço riscado é o preço anterior do anúncio (houve queda). A etiqueta “bom negócio” aparece quando o preço está abaixo da média de similares sem ser suspeito."
       />
       {busy === "analyze" && <p role="status" className="text-sm text-muted">Aguardando a IA. Isso pode levar alguns minutos.</p>}
       {msg && (
         <p className="border border-border bg-surface p-3 text-sm text-muted">{msg}</p>
       )}
 
-      <VehicleSummary analysis={row.analysis} price={row.price} />
+      <VehicleSummary analysis={row.analysis} price={row.price} conditionScore={cat?.score} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
         {/* Galeria */}
@@ -169,15 +170,15 @@ export function Detail() {
             {row.priceOld != null && (
               <span className="text-sm text-muted line-through tnum">{formatBRL(row.priceOld)}</span>
             )}
-            {row.opportunity && <Badge tone="ok">oportunidade</Badge>}
+            {row.opportunity && <Badge tone="ok">bom negócio</Badge>}
             <span className="text-sm text-muted">{detail.location ?? "—"}</span>
             <span className="text-sm text-subtle tnum">{formatDate(row.date)}</span>
           </div>
 
           <LearnNote title="Como a análise é calculada">
             <p>A <strong>oportunidade</strong> começa em 50 e sobe ou desce conforme o preço frente à média de similares: 5% a 10% abaixo dá +10, 10% a 20% abaixo +20, 20% ou mais abaixo +30 (preço 25% abaixo ou pior é tratado com cautela: bônus só +15 e um alerta). Acima do mercado desconta na mesma escala, até -30.</p>
-            <p>A <strong>condição estimada pela IA</strong> ajusta de -5 a +10 e <strong>km suspeita</strong> tira pontos. Rótulos: 85+ Excelente, 70+ Boa, 50+ Dentro do esperado, abaixo disso Pouco atrativa.</p>
-            <p>A <strong>confiança</strong> diz o quanto dá para confiar na análise: sobe quando há preço, ano, km, marca/modelo e nota da IA, e quando há pelo menos 2 (idealmente 5+) anúncios para comparar. 75+ é Alta, 50+ Média.</p>
+            <p>A <strong>Condição (IA)</strong> — nota de 0 a 100 dada pela IA, a mesma do selo na OLX — ajusta de -5 a +10 e <strong>km suspeita</strong> tira pontos. Rótulos: 85+ Excelente, 70+ Boa, 50+ Dentro do esperado, abaixo disso Pouco atrativa.</p>
+            <p>A <strong>confiança</strong> diz o quanto dá para confiar na análise: sobe quando há preço, ano, km, marca/modelo e nota da IA, e quando há pelo menos 2 (idealmente 5+) anúncios para comparar. 75+ é Alta, 50+ Média. Sem anúncios para comparar o preço, a confiança fica no máximo em Média.</p>
           </LearnNote>
           <Section title="Especificações">
             <p className="mb-2 text-xs text-subtle">Estimadas pela IA a partir do anúncio.</p>

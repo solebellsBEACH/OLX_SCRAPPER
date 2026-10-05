@@ -81,7 +81,7 @@ export async function analyzeSelected(targets: Target[], force = false): Promise
           shallow: false,
         });
         analyzed.push(record);
-        progress(`✔ ${t.id} salvo no DB (${pos})`, { id: t.id, state: "done" });
+        progress(`✔ ${t.id} salvo na lista (${pos})`, { id: t.id, state: "done" });
       } catch (err) {
         if (err instanceof CancelledError) throw err;
         const msg = err instanceof Error ? err.message : String(err);

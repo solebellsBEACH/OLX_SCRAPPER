@@ -195,7 +195,7 @@ export interface AdRow {
   /** epoch ms para ordenar; vem de savedAt/analyzedAt/publishedAt. */
   date: number | null;
   thumb: string | null;
-  /** preço abaixo da média do mesmo modelo+ano (grupo com 2+ anúncios). */
+  /** "Bom negócio": preço abaixo do mercado e sem alerta de preço suspeito (ver isGoodDeal). */
   opportunity: boolean;
   /** resumo de análise v1 (score de oportunidade, confiança, alertas, sinais). */
   analysis: VehicleAnalysisSummary;

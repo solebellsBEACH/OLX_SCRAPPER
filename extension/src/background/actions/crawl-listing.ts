@@ -115,7 +115,7 @@ export async function crawlListing({
       });
       progress(
         `Página ${p}: +${novos.length} novo(s)` +
-          (known.length ? ` · ${known.length} já no DB` : "") +
+          (known.length ? ` · ${known.length} já salvos` : "") +
           (dupOnPage.length ? ` · ${dupOnPage.length} repetido(s)` : "") +
           ` · total ${allCards.length}`,
       );
@@ -172,13 +172,13 @@ export async function crawlListing({
       .map(itemToRecord)
       .filter((r): r is DbRecord => r !== null);
     if (records.length > 0) {
-      progress(`Salvando ${records.length} anúncio(s) no db.json...`, { state: "running" });
+      progress(`Salvando ${records.length} anúncio(s) na sua lista...`, { state: "running" });
       try {
         savedToDb = await dbUpsertMany(records);
         for (const r of records) db[r.id] = r;
       } catch (err) {
         saveError = err instanceof Error ? err.message : String(err);
-        progress(`⚠️ Falha ao gravar no db.json: ${saveError}`);
+        progress(`⚠️ Falha ao salvar na lista: ${saveError}`);
       }
     } else {
       saveError = "nenhum registro montado a partir dos cards (id/url ausentes).";

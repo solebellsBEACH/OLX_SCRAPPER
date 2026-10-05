@@ -6,7 +6,13 @@ import type { VehicleAlert, VehicleAnalysisSummary, VehicleSignal } from "@/type
 import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { CONFIDENCE_TEXT, OPPORTUNITY_TEXT } from "@/components/VehicleAnalysisBadges";
+import { relevantAlerts } from "@/lib/rows";
+import {
+  CONDITION_LABEL,
+  CONFIDENCE_TEXT,
+  OPPORTUNITY_TEXT,
+  conditionText,
+} from "@/components/VehicleAnalysisBadges";
 
 const MAX_POSITIVE_SIGNALS = 3;
 
@@ -20,14 +26,19 @@ function pricePhrase(status: NonNullable<VehicleAnalysisSummary["priceStatus"]>,
 export function VehicleSummary({
   analysis,
   price,
+  conditionScore,
 }: {
   analysis: VehicleAnalysisSummary;
   price?: number | null;
+  /** categoria.score — condição estimada pela IA (o número do selo na OLX). */
+  conditionScore?: number | null;
 }) {
   const opp = analysis.opportunityLabel ? OPPORTUNITY_TEXT[analysis.opportunityLabel] : null;
   const confidenceText = analysis.confidenceLabel ? CONFIDENCE_TEXT[analysis.confidenceLabel] : null;
   const hasMarketData = analysis.priceStatus != null;
-  const topAlerts = analysis.alerts;
+  // alertas informativos (ex.: poucos similares) são sobre a base, não sobre o carro:
+  // aparecem como nota neutra em "Preço vs mercado", não como alerta laranja.
+  const topAlerts = relevantAlerts(analysis);
   const topSignals = analysis.positiveSignals.slice(0, MAX_POSITIVE_SIGNALS);
 
   return (
@@ -44,9 +55,20 @@ export function VehicleSummary({
               </Badge>
             )}
             {analysis.opportunityScore != null && (
-              <span className="text-xs text-subtle tnum">score {analysis.opportunityScore}/100</span>
+              <span className="text-xs text-subtle tnum">nota {analysis.opportunityScore}/100</span>
             )}
           </div>
+        </div>
+
+        {/* Condição (IA) — número diferente da Oportunidade */}
+        <div>
+          <p className="text-xs font-semibold text-muted">{CONDITION_LABEL}</p>
+          <p className="mt-1 text-sm">
+            <span className="tnum">{conditionText(conditionScore)}</span>
+            <span className="ml-2 text-xs text-subtle">
+              Condição do carro estimada pela IA lendo o anúncio — o mesmo número do selo na OLX.
+            </span>
+          </p>
         </div>
 
         {/* Confiança da análise */}
@@ -78,7 +100,10 @@ export function VehicleSummary({
               )}
             </div>
           ) : (
-            <p className="mt-1 text-sm text-subtle">Poucos dados para comparar o preço.</p>
+            <p className="mt-1 text-sm text-subtle">
+              Poucos dados para comparar o preço: ainda não há anúncios suficientes da mesma marca, modelo e
+              ano na sua base.
+            </p>
           )}
         </div>
 
@@ -159,7 +184,7 @@ function ScoreBreakdownDetails({
   const lines: Array<{ label: string; value: number }> = [{ label: "Base", value: breakdown.base }];
   if (breakdown.priceAdjustment != null) lines.push({ label: "Preço", value: breakdown.priceAdjustment });
   if (breakdown.conditionAdjustment != null)
-    lines.push({ label: "Condição estimada", value: breakdown.conditionAdjustment });
+    lines.push({ label: CONDITION_LABEL, value: breakdown.conditionAdjustment });
   if (breakdown.mileageAdjustment != null)
     lines.push({ label: "Quilometragem", value: breakdown.mileageAdjustment });
 

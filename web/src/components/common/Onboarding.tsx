@@ -1,19 +1,46 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { useDb } from "@/lib/useDb";
 
-const STEPS = [
-  { title: "Bem-vindo!", text: "Aqui você analisa anúncios de carros da OLX." },
-  { title: "Filtre", text: "Use a busca e os filtros para encontrar oportunidades." },
-  { title: "Compare", text: "Clique em um anúncio para ver detalhes e comparar." },
+const WELCOME = {
+  title: "Bem-vindo!",
+  text: "Este painel mostra os carros que você analisou na OLX e diz se o preço está bom, normal ou caro comparado a anúncios parecidos.",
+};
+
+// Texto muda conforme a lista: vazia, o próximo passo é ir à OLX; com dados, é filtrar e comparar.
+const STEPS_EMPTY = [
+  WELCOME,
+  {
+    title: "Comece pela OLX",
+    text: "Sua lista ainda está vazia. Abra uma busca de carros na OLX, clique no ícone da extensão e use \"Começar análise\".",
+  },
+  {
+    title: "Volte aqui depois",
+    text: "Os anúncios analisados aparecem sozinhos no Dashboard e na Listagem. Para a análise completa, configure uma IA em Configurações.",
+  },
 ];
-const STEP_MS = 5000;
 
-/** Tour de 3 telas. Avança sozinho a cada 5s, mas pausa com mouse/foco e sempre dá para pular. */
+const STEPS_WITH_DATA = [
+  WELCOME,
+  {
+    title: "Encontre carros",
+    text: "Na Listagem, use a busca e os filtros (marca, ano, preço, km). O selo colorido diz se o preço está abaixo, dentro ou acima do esperado.",
+  },
+  {
+    title: "Compare antes de decidir",
+    text: "Clique em um anúncio para ver a análise completa, ou marque de 2 a 4 na Listagem e clique em \"Comparar\" para vê-los lado a lado.",
+  },
+];
+const STEP_MS = 8000;
+
+/** Tour de 3 telas. Avança sozinho a cada 8s, mas pausa com mouse/foco e sempre dá para pular. */
 export function Onboarding({ onClose }: { onClose: (dontShowAgain: boolean) => void }) {
   const [step, setStep] = useState(0);
   const [paused, setPaused] = useState(false);
   const [never, setNever] = useState(false);
+  const { status } = useDb();
+  const STEPS = status === "empty" ? STEPS_EMPTY : STEPS_WITH_DATA;
   const last = step === STEPS.length - 1;
 
   useEffect(() => {

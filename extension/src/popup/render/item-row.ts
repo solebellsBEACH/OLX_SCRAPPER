@@ -74,7 +74,7 @@ export function renderItem(it: Item): HTMLDivElement {
   } else if (it.categoria?.quick) {
     body.appendChild(badge("run", "⚡ rápido (sem IA)"));
     if (typeof score === "number") body.appendChild(scoreBadge(score));
-  } else if (it.inDb) body.appendChild(badge("db", "🗃️ no DB (raso)"));
+  } else if (it.inDb) body.appendChild(badge("db", "🗃️ salvo (sem detalhes)"));
 
   if (it.categoria?.kmSuspeito) {
     const alert = badge("err", "⚠️ km suspeita");

@@ -296,6 +296,122 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-10-05 (5) — Usabilidade: ajustes finais
+
+- **"Preço" e "Oportunidade" separados na Listagem:**
+  - Na linha da Listagem, o rótulo "Oportunidade:" virou "Preço:", porque mostra a frase de
+    preço vs mercado.
+  - Nos detalhes expandidos, viraram dois itens: "Preço" (frase) e "Oportunidade" (rótulo +
+    nota 0-100).
+  - Chave `HELP.oportunidade` renomeada para `HELP.preco`.
+- **Popup sem jargão de "DB":** no modo Avançado e nas mensagens de progresso, "DB"/"db.json"
+  viraram "lista"/"anúncios salvos" ("Ver dados salvos", "Restaurar backup", "Apagar todos os
+  anúncios salvos", "Carregar pendentes salvos" etc.). Os ids de elementos e a chave de
+  storage não mudaram. O botão de apagar tudo do popup ganhou uma confirmação, que antes não
+  existia.
+- **Hierarquia de texto no painel:** `--muted` claro mudou de #6b6b6b para #575757, porque
+  tinha ficado quase igual ao novo `--subtle` (#6f6f6f).
+- **`.gitignore`:** passa a ignorar `Claude outputs/` (capturas de sessões com o Claude). A
+  linha quebrada `prompt.md/dist/` virou `prompt.md` (o `/dist/` já tinha linha própria).
+
+### 2026-10-05 (4) — Usabilidade, fase 4: textos, layout e acessibilidade do painel
+
+- **Textos sem jargão:**
+  - Na Listagem, "Descrição:" virou "Versão:", porque o campo mostra a versão.
+  - "Remover do DB" virou "Remover da lista" e "Limpar DB" virou "Apagar todos os anúncios
+    salvos". As confirmações não citam mais `db.json`.
+  - "Timeout (ms)" virou "Tempo máximo de espera (segundos)". O formulário converte para ms;
+    a chave `timeoutMs` não mudou.
+  - O menu "Config" virou "Configurações" (o endereço continua `/db`).
+  - O estado vazio diz "Nenhum anúncio salvo ainda".
+- **Configurações:** a importação ("Restaurar backup"), o "Baixar backup completo" (antigo
+  "db.json cru") e os "Dados brutos" (antigo "JSON cru") foram para uma seção recolhível
+  **Avançado**. Nomes de arquivo e formatos continuam os mesmos.
+- **Aviso de IA:** saiu o indicador repetido do cabeçalho do Dashboard. Ficam o banner e o
+  indicador da barra lateral.
+- **Responsividade:** abaixo de 768px a grade do `Layout` tinha uma coluna implícita (`auto`)
+  que crescia até a largura do menu horizontal (cerca de 520px). Isso cortava o "Configurar
+  agora" e o "Por página". Correção: `grid-cols-1` + `min-w-0`. Os botões do `PageHeader`
+  agora quebram linha, e o resumo compacto do Comparador também. Medido sem rolagem
+  horizontal em todas as rotas, de 360 a 820px.
+- **Comparador:** sem foto, aparece o mesmo "sem imagem" do Detalhe. A linha "R$/km" saiu. Em
+  "Opcionais", aparece "—" quando o anúncio não informa.
+- **Onboarding:** traduzido ("Compare" virou "Compare antes de decidir"), com textos que
+  mudam conforme a lista está vazia (ir à OLX e usar a extensão) ou com anúncios (filtrar e
+  comparar).
+- **Acessibilidade:**
+  - `--accent` claro mudou de #0071e3 para #0066cc (4,8:1 sobre `--accent-weak`) e
+    `--subtle` de #9a9a9a para #6f6f6f (4,8:1 sobre o fundo).
+  - O `HelpTip` virou `<button type="button">`.
+  - Os cabeçalhos vazios da tabela ganharam texto `sr-only`.
+  - As duas paginações da Listagem têm rótulos únicos.
+  - Links no meio do texto agora são sublinhados.
+  - O `<pre>` dos dados brutos ganhou `tabIndex={0}`.
+
+### 2026-10-05 (3) — Usabilidade, fase 3: popup cabe em 600px
+
+- **Layout compacto:** o Chrome limita popups a 600px de altura, e o "Começar análise" ficava
+  abaixo da dobra (cerca de 662px medidos, com o cabeçalho quebrando em 2 linhas). O cabeçalho
+  agora fica em 1 linha, com subtítulo menor, e paddings e espaçamentos foram reduzidos em
+  `styles/popup.css`. No modo Iniciante o popup mede cerca de 540px, ou 564px no pior caso
+  (aviso de IA + motivo de bloqueio visíveis).
+- **Tutorial (`tour.ts`):** antes de posicionar cada passo, o alvo é rolado para o centro
+  (`scrollIntoView({ block: "center" })`) e medido de novo no frame seguinte. O destaque é
+  reposicionado também no `scroll`, e o card nunca sai pela parte de baixo da janela.
+- **"Começar análise" desabilitado com motivo:** sem uma busca da OLX aberta na aba, aparece
+  "Abra uma busca de carros na OLX para começar.". Em "Varrer todas as páginas" sem IA
+  configurada, aparece "Configure uma IA primeiro…". "Analisar esta página" usa a análise
+  rápida, que não chama a IA, por isso não é bloqueada por falta de IA. O motivo fica logo
+  abaixo do botão (`aria-describedby`).
+- **Contraste:** `--muted` no tema claro passou de #6b7280 para #5f6673 (5,3:1 sobre o fundo
+  #f4f5f7; antes era 4,43:1).
+
+### 2026-10-05 (2) — Usabilidade, fase 2: selos e bordas na página da OLX
+
+Mudanças em `extension/src/content/card-marking.ts`.
+
+- **Selo fora da foto:** o `.olxw-score-badge` ficava no canto superior direito e cobria o
+  botão de favoritar da OLX. Agora entra logo depois do preço do card (sem preço, depois do
+  título; sem nenhum dos dois, no canto inferior esquerdo do card). Assim não cobre o
+  favoritar nem selos como "Destaque"/"Histórico Veicular".
+- **Explicação acessível:** saiu o `pointer-events: none`, então o `title` volta a aparecer
+  no hover. O selo ganhou `role="img"` e um `aria-label` com o mesmo texto.
+- **Contraste:** as faixas mudaram para #15803d (80+), #b45309 (50 a 79) e #b91c1c (abaixo de
+  50). Todas dão pelo menos 4,5:1 com texto branco de 12px. O badge de condição do popup usa
+  as mesmas cores.
+- **Bordas com legenda:** a borda "pendente" saiu do amarelo, que parecia destaque pago da
+  OLX, e virou cinza pontilhada ("salvo, aguardando análise"). A página ganha uma legenda
+  fixa e recolhida no canto inferior esquerdo, que só aparece quando algum card foi marcado e
+  some com "Ocultar indicadores". Os textos do popup foram atualizados.
+
+### 2026-10-05 — Usabilidade, fase 1: mesmos números e veredictos em todas as telas
+
+Correções vindas de uma avaliação de usabilidade/UI.
+
+- **Mesmo carro, veredictos diferentes (causa):** o Detalhe chamava `toRows()` só com o
+  próprio anúncio e o Comparador só com os 2 a 4 carros selecionados. Com isso, a média de
+  mercado era calculada sem o resto da base, e o mesmo Sandero aparecia como "Caro, 12% acima"
+  na Listagem e "Sem dados suficientes" no Comparador. Agora as duas telas pegam as linhas
+  de `useDb().rows` (base inteira) via `rowsByIds()` em `web/src/lib/rows.ts`. O grupo de
+  mercado também passou a usar a mesma marca da linha (IA ou propriedade "Marca" da OLX).
+  `row.opportunity`, que tinha uma conta paralela própria, agora vem da análise (`isGoodDeal`).
+- **Dois scores com nomes distintos:** "Oportunidade" (`opportunityScore`, calculado no
+  painel) e "Condição (IA)" (`categoria.score`, o número do selo na OLX). A Condição (IA)
+  passou a aparecer na Listagem (linha, card e detalhes), no Comparador e no Detalhe. O selo
+  na OLX e o badge do popup agora mostram "Condição 85/100".
+- **Confiança:** sem amostra de mercado, fica no máximo em "Média". Antes chegava a "Alta"
+  junto com "Poucos dados para comparar o preço".
+- **Preço suspeito:** com o alerta `price_far_below_market`, o selo vira "Verificar preço"
+  (tom de atenção) em vez do verde "Bom negócio" (novo tom `verify` em `colors.ts`).
+- **Dashboard alinhado com a Listagem:** o card "Boas oportunidades" virou "Bons negócios" e
+  a seção "Melhores oportunidades" virou "Melhores negócios". As duas usam o mesmo critério
+  do selo "Bom negócio" (antes exigiam nota de Oportunidade 70 ou mais e ficavam vazias). A
+  seção continua com o limite de no máximo 1 alerta relevante.
+- **Alerta informativo:** `INFORMATIONAL_ALERT_TYPES`/`relevantAlerts()` foram para o
+  `rows.ts` e todas as telas usam essas funções. O aviso "poucos veículos para comparação"
+  não conta mais como "1 alerta". No Detalhe, aparece como nota neutra em "Preço vs mercado".
+- Testes novos em `rows.test.ts` cobrindo essas regras.
+
 ### 2026-09-22 (6) — Versão 1.0.2 + `.gitignore` corrigido pro `dist/` da raiz
 
 - **`manifest.json`/`extension/package.json` → `1.0.2`** (era `1.0.1`/`1.0.0`, dessincronizados)

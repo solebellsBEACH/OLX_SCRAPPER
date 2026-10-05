@@ -48,7 +48,7 @@ export async function analyze(): Promise<AnalyzeResult> {
         savedToDb = await dbUpsertMany(newRecords);
         for (const r of newRecords) db[r.id] = r;
       } catch (err) {
-        progress(`⚠️ Não deu pra salvar rascunho no db.json: ${err instanceof Error ? err.message : String(err)}`);
+        progress(`⚠️ Não deu pra salvar o rascunho na lista: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

@@ -11,12 +11,16 @@
     --surface: 255 255 255;
     --border: 229 229 229;
     --fg: 26 26 26;
-    --muted: 107 107 107;
-    --subtle: 154 154 154;
-    /* Acento e semáforo derivados do Design.md (Apple ref.): Purchase Blue #0071e3,
-       Battery Green #00d959 (escurecido aqui p/ contraste em texto sobre branco),
-       New Orange #b64400. */
-    --accent: 0 113 227;
+    /* #575757: escurecido junto com o --subtle pra manter a diferença entre texto
+       secundário (muted) e terciário (subtle) — antes eram #6b6b6b vs #6f6f6f */
+    --muted: 87 87 87;
+    /* #6f6f6f: >= 4.5:1 sobre --bg/--surface (o #9a9a9a anterior dava 2,69:1) */
+    --subtle: 111 111 111;
+    /* Acento e semáforo derivados do Design.md (Apple ref.): Purchase Blue #0071e3
+       escurecido p/ #0066cc (4,8:1 como texto sobre --accent-weak; o original dava
+       4,05:1), Battery Green #00d959 (escurecido aqui p/ contraste em texto sobre
+       branco), New Orange #b64400. */
+    --accent: 0 102 204;
     --accent-fg: 255 255 255;
     --accent-weak: 227 240 253;
     --accent-border: 179 214 250;

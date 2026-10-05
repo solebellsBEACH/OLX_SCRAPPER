@@ -11,6 +11,6 @@ export function scoreBadge(score: number): HTMLSpanElement {
   b.className = "badge score";
   if (score < 50) b.dataset.tier = "low";
   else if (score < 80) b.dataset.tier = "mid";
-  b.textContent = `Score ${Math.round(score)}`;
+  b.textContent = `Condição ${Math.round(score)}/100`;
   return b;
 }

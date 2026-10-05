@@ -32,7 +32,7 @@ export interface MarkItem {
   /**
    * "done" = já analisado a fundo pela IA (borda verde + score); "quick" =
    * score heurístico da "Análise rápida" (borda azul tracejada, sem IA);
-   * "pending" = ainda aguarda.
+   * "pending" = salvo, aguardando análise (borda cinza pontilhada).
    */
   status: "done" | "pending" | "quick";
   score?: number | null;

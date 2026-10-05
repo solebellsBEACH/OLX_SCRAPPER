@@ -1,4 +1,4 @@
-import { Minus, TrendingDown, TrendingUp, CircleSlash } from "lucide-react";
+import { AlertTriangle, Minus, TrendingDown, TrendingUp, CircleSlash } from "lucide-react";
 import type { VehicleAnalysisSummary } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { getPriceTone, TONE_BADGE, TONE_LABEL, type PriceTone } from "@/lib/colors";
@@ -7,6 +7,7 @@ const ICON: Record<PriceTone, typeof Minus> = {
   good: TrendingDown,
   normal: Minus,
   expensive: TrendingUp,
+  verify: AlertTriangle,
   nodata: CircleSlash,
 };
 

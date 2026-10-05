@@ -34,7 +34,7 @@ export function registerAnalyzeAction(): void {
         state.indicatorsShown = true;
         setIndicatorsButtonLabel();
         const naoCarro = result.nonCar ? ` · ${result.nonCar} não-carro(s) ocultado(s)` : "";
-        const salvos = result.savedToDb ? ` · ${result.savedToDb} novo(s) salvo(s) no DB (rascunho)` : "";
+        const salvos = result.savedToDb ? ` · ${result.savedToDb} novo(s) salvo(s) na lista (rascunho)` : "";
         setStatus(
           result.aiError
             ? `⚠️ ${result.count} carro(s) listado(s)${naoCarro}. IA: ${result.aiError}`

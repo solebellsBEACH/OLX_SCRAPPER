@@ -21,7 +21,8 @@ interface FormState {
   /** Id escolhido no select, ou OTHER_MODEL. */
   modelChoice: string;
   customModel: string;
-  timeoutMs: string;
+  /** em segundos no formulário; o provedor guarda em ms (timeoutMs). */
+  timeoutSec: string;
   apiKey: string;
 }
 
@@ -32,7 +33,7 @@ function newForm(preset: AiPreset): FormState {
     apiUrl: preset.apiUrl,
     modelChoice: preset.models[0]?.id ?? OTHER_MODEL,
     customModel: "",
-    timeoutMs: String(DEFAULT_TIMEOUT_MS),
+    timeoutSec: String(DEFAULT_TIMEOUT_MS / 1000),
     apiKey: "",
   };
 }
@@ -46,7 +47,7 @@ function editForm(p: AiProvider, preset: AiPreset): FormState {
     apiUrl: p.apiUrl,
     modelChoice: known ? p.model : OTHER_MODEL,
     customModel: known ? "" : p.model,
-    timeoutMs: String(p.timeoutMs),
+    timeoutSec: String(Math.round(p.timeoutMs / 1000)),
     apiKey: "",
   };
 }
@@ -134,7 +135,7 @@ export function AiProviders() {
           label: form.label || preset.label,
           apiUrl: form.apiUrl,
           model,
-          timeoutMs: Number(form.timeoutMs) || undefined,
+          timeoutMs: Number(form.timeoutSec) ? Number(form.timeoutSec) * 1000 : undefined,
           apiKey: form.apiKey || undefined,
         }),
       "Salvo.",
@@ -302,14 +303,14 @@ export function AiProviders() {
               )}
             </Field>
 
-            <Field label="Timeout (ms)">
+            <Field label="Tempo máximo de espera (segundos)">
               <Input
                 type="number"
-                min={10_000}
-                max={300_000}
-                step={1000}
-                value={form.timeoutMs}
-                onChange={(e) => setForm({ ...form, timeoutMs: e.target.value })}
+                min={10}
+                max={300}
+                step={1}
+                value={form.timeoutSec}
+                onChange={(e) => setForm({ ...form, timeoutSec: e.target.value })}
               />
             </Field>
 
@@ -327,7 +328,7 @@ export function AiProviders() {
             </div>
           </div>
           <p className="mt-3 text-xs text-subtle">
-            Gravado na extensão (chrome.storage.local) e enviado somente ao provedor escolhido. Aplicado na hora.
+            Guardado só neste navegador e enviado somente ao provedor escolhido. Vale na hora.
           </p>
         </Card>
       )}

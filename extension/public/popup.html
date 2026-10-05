@@ -14,7 +14,7 @@
           <span class="brand-mark">🚗</span>
           <div class="brand-txt">
             <h1>OLX Workspace</h1>
-            <p class="sub">Analise anúncios de carros da OLX</p>
+            <p class="sub">Analise carros da OLX com IA</p>
           </div>
         </div>
         <button id="tourBtn" class="btn btn-sm" type="button" title="Ver o tutorial passo a passo de novo">🎓 Tutorial</button>
@@ -83,7 +83,8 @@
         <section class="card">
           <div class="card-title">3 · Pronto? Vamos lá</div>
           <p id="beginnerCount" class="count-line" aria-live="polite"></p>
-          <button id="startBtn" class="btn btn-primary btn-lg" type="button">🚀 Começar análise</button>
+          <button id="startBtn" class="btn btn-primary btn-lg" type="button" aria-describedby="startHint">🚀 Começar análise</button>
+          <p id="startHint" class="start-hint" hidden></p>
           <div id="beginnerStatus" class="b-status" role="status" aria-live="polite" hidden>
             <span class="spinner" aria-hidden="true"></span>
             <span id="beginnerStatusText"></span>
@@ -129,7 +130,7 @@
           </label>
           <label class="opt">
             <input type="checkbox" id="saveToDb" checked />
-            <span>Salvar no DB</span>
+            <span>Salvar na minha lista</span>
           </label>
         </div>
       </section>
@@ -153,15 +154,15 @@
             <span class="btn-ico">🚫</span> Ocultar indicadores
           </button>
           <button id="loadPendingBtn" class="btn">
-            <span class="btn-ico">📥</span> Carregar pendentes do DB
+            <span class="btn-ico">📥</span> Carregar pendentes salvos
           </button>
         </div>
         <div class="card-title" style="margin-top:14px">Como funciona</div>
         <p class="card-hint">
-          Destaca os anúncios na própria página da OLX: <span class="dot dot-done"></span> verde + score
-          = já analisado a fundo · <span class="dot dot-quick"></span> azul tracejado + ⚡score =
-          "Análise rápida" · <span class="dot dot-pending"></span>
-          amarelo = ainda aguarda. "Exibir indicadores" só confere o que já está salvo no DB (sem
+          Destaca os anúncios na própria página da OLX: <span class="dot dot-done"></span> borda verde +
+          "Condição 85/100" = já analisado pela IA · <span class="dot dot-quick"></span> azul tracejado +
+          ⚡nota = "Análise rápida" · <span class="dot dot-pending"></span> cinza pontilhado = salvo,
+          aguardando análise. A página também mostra uma legenda recolhida no canto inferior esquerdo. "Exibir indicadores" só confere o que já está salvo na sua lista (sem
           IA) — útil se a extensão foi recarregada com a aba já aberta e a marcação automática não
           pegou.
         </p>
@@ -172,8 +173,8 @@
           selecionados").
         </p>
         <p class="card-hint">
-          "Analisar página" já grava um rascunho raso de cada carro novo no <code>db.json</code>
-          (não perde mais ao fechar a extensão). "Carregar pendentes do DB" traz de volta pra lista
+          "Analisar página" já grava um rascunho simples de cada carro novo na sua lista
+          (não perde mais ao fechar a extensão). "Carregar pendentes salvos" traz de volta pra lista
           os que ainda não passaram por "Analisar selecionados" — de qualquer sessão anterior —,
           pra você selecionar e mandar analisar a fundo agora.
         </p>
@@ -199,10 +200,10 @@
           <button id="analyzeSelBtn" class="btn btn-sm btn-primary" disabled>
             🔎 Analisar selecionados (0)
           </button>
-          <button id="viewDbBtn" class="btn btn-sm">🗃️ Ver DB</button>
-          <button id="importDbBtn" class="btn btn-sm">⬆️ Importar DB</button>
+          <button id="viewDbBtn" class="btn btn-sm">🗃️ Ver dados salvos</button>
+          <button id="importDbBtn" class="btn btn-sm">⬆️ Restaurar backup</button>
           <input type="file" id="importDbInput" accept="application/json" hidden />
-          <button id="clearDbBtn" class="btn btn-sm ghost">limpar DB</button>
+          <button id="clearDbBtn" class="btn btn-sm ghost">Apagar todos os anúncios salvos</button>
         </div>
       </div>
 

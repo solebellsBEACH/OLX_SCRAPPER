@@ -39,10 +39,10 @@ export function registerCrawlAction(): void {
         const pgs = result.pages ?? 0;
         const extra = [
           result.lastPage ? `paginação: ${result.lastPage} página(s)` : "",
-          result.savedToDb ? `${result.savedToDb} salvos no DB` : "",
-          result.saveError ? `NÃO salvo no DB: ${result.saveError}` : "",
+          result.savedToDb ? `${result.savedToDb} salvos na lista` : "",
+          result.saveError ? `NÃO salvo na lista: ${result.saveError}` : "",
           result.nonCar ? `${result.nonCar} não-carro(s) ignorado(s)` : "",
-          result.skipped ? `${result.skipped} já no DB (pulados)` : "",
+          result.skipped ? `${result.skipped} já salvos (pulados)` : "",
           result.duplicates ? `${result.duplicates} repetidos na paginação` : "",
         ]
           .filter(Boolean)

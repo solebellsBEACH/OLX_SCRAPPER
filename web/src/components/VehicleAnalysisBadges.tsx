@@ -4,6 +4,21 @@
 import { AlertTriangle } from "lucide-react";
 import type { VehicleAnalysisSummary } from "@/types";
 import { Badge } from "@/components/ui/badge";
+import { getPriceTone } from "@/lib/colors";
+import { relevantAlerts } from "@/lib/rows";
+
+/**
+ * Dois números diferentes, dois nomes diferentes em toda a UI:
+ *   "Oportunidade"  = opportunityScore (preço vs mercado + ajustes) — calculado no painel
+ *   "Condição (IA)" = categoria.score (condição estimada pela IA a partir do anúncio) —
+ *                     o mesmo número do selo na página da OLX
+ */
+export const CONDITION_LABEL = "Condição (IA)";
+
+/** "85/100" ou "—" quando a IA não deu nota. */
+export function conditionText(score: number | null | undefined): string {
+  return score != null ? `${score}/100` : "—";
+}
 
 type Tone = "ok" | "neutral" | "warn";
 
@@ -28,12 +43,14 @@ export function marketPhrase(analysis: VehicleAnalysisSummary): string {
   if (analysis.priceStatus == null) return "Sem dados suficientes";
   const pct = Math.round(Math.abs(analysis.priceDifferencePercent ?? 0));
   if (analysis.priceStatus === "market") return "Dentro da média";
+  if (getPriceTone(analysis) === "verify") return `${pct}% abaixo — verificar`;
   if (analysis.priceStatus === "below" || analysis.priceStatus === "well_below") return `${pct}% abaixo`;
   return `${pct}% acima`;
 }
 
 function marketTone(analysis: VehicleAnalysisSummary): Tone {
   if (analysis.priceStatus == null) return "neutral";
+  if (getPriceTone(analysis) === "verify") return "warn";
   if (analysis.priceStatus === "below" || analysis.priceStatus === "well_below") return "ok";
   if (analysis.priceStatus === "market") return "neutral";
   return "warn";
@@ -69,19 +86,19 @@ export function OpportunityBadge({
 
 /** "2 alertas" / "1 alerta" / "Sem alertas relevantes", com os títulos no title (tooltip). */
 export function alertsSummaryText(analysis: VehicleAnalysisSummary): string {
-  const n = analysis.alerts.length;
+  const n = relevantAlerts(analysis).length;
   if (n === 0) return "Sem alertas relevantes";
   return n === 1 ? "1 alerta" : `${n} alertas`;
 }
 
 /** Badge compacto de alertas — ícone + texto + tom, títulos completos só no tooltip (title). */
 export function AlertsBadge({ analysis }: { analysis: VehicleAnalysisSummary }) {
-  const n = analysis.alerts.length;
-  if (n === 0) {
+  const alerts = relevantAlerts(analysis);
+  if (alerts.length === 0) {
     return <span className="text-xs text-subtle">Sem alertas relevantes</span>;
   }
-  const hasDanger = analysis.alerts.some((a) => a.severity === "danger");
-  const title = analysis.alerts.map((a) => a.title).join(" · ");
+  const hasDanger = alerts.some((a) => a.severity === "danger");
+  const title = alerts.map((a) => a.title).join(" · ");
   return (
     <span className="inline-flex items-center gap-1" title={title}>
       <Badge tone={hasDanger ? "danger" : "warn"}>

@@ -41,19 +41,22 @@ export function Tooltip({
 export function HelpTip({ text, side = "bottom" }: { text: string; side?: "top" | "bottom" }) {
   return (
     <Tooltip text={text} side={side}>
-      <span
-        tabIndex={0}
+      {/* <button> (e não <span>) pra o aria-label ter um papel que o leitor de tela anuncie;
+          stopPropagation: não abre/fecha a linha da tabela ao tocar no "?" */}
+      <button
+        type="button"
         aria-label={text}
+        onClick={(e) => e.stopPropagation()}
         className="inline-flex cursor-help rounded-full text-subtle hover:text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
       >
         <HelpCircle aria-hidden className="h-3 w-3" />
-      </span>
+      </button>
     </Tooltip>
   );
 }
 
 export const HELP = {
-  oportunidade: "Preço vs. similares: verde = bom negócio, laranja = caro",
+  preco: "Preço vs. similares: verde = bom negócio, laranja = caro",
   status: "Avaliação do preço: verde bom, amarelo normal, laranja caro",
   alertas: "Problemas detectados no anúncio (ex.: preço muito alto)",
   mercado: "Quanto se esperaria pagar por um carro assim",

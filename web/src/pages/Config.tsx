@@ -17,7 +17,7 @@ export function Config() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function clear() {
-    if (!confirm("Zerar a base inteira? Não dá pra desfazer.")) return;
+    if (!confirm("Apagar todos os anúncios salvos? Não dá pra desfazer.")) return;
     setClearing(true);
     try {
       await api.clearDb();
@@ -51,41 +51,40 @@ export function Config() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Config" />
+      <PageHeader title="Configurações" />
 
       <LearnPage
-        title="Config"
-        what="Onde você liga a IA (obrigatória para analisar anúncios) e cuida da base de dados da extensão."
+        title="Configurações"
+        what="Onde você liga a IA (obrigatória para analisar anúncios) e cuida dos anúncios salvos pela extensão."
         can={[
           "Cadastrar vários provedores de IA, escolher o modelo de cada um e definir qual está ativo.",
           "Testar a IA ativa com um anúncio de exemplo.",
-          "Importar um db.json antigo (junta por id, sem apagar o que já existe).",
-          "Exportar a base em CSV, JSON de linhas ou o db.json cru.",
-          "Limpar a base inteira (zona de perigo, sem volta).",
+          "Baixar seus anúncios em planilha (CSV) ou arquivo JSON.",
+          "Apagar todos os anúncios salvos (zona de perigo, sem volta).",
+          "Em \"Avançado\": restaurar um backup e ver os dados brutos.",
         ]}
-        read="As chaves de API ficam só no armazenamento local da extensão e são enviadas apenas ao provedor escolhido. O timeout é quanto tempo esperar a resposta da IA antes de desistir."
+        read="As chaves de API ficam só neste navegador e são enviadas apenas ao provedor escolhido. O tempo máximo de espera é quanto aguardar a resposta da IA antes de desistir."
       />
 
       <AiProviders />
 
-      <Card title="Importar db.json">
-        <p className="mb-2 text-xs text-subtle">
-          Traz os registros de um db.json exportado (ex.: da versão anterior com proxy local) pra dentro da extensão. Faz
-          merge por id — não apaga o que já existe.
-        </p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void importFile(file);
-          }}
-        />
-        <Button size="md" onClick={() => fileRef.current?.click()} disabled={importing}>
-          <Upload className="h-3 w-3" />
-          {importing ? "Importando…" : "Selecionar arquivo"}
+      <Card title="Exportar">
+        <div className="flex flex-wrap gap-2">
+          <Button size="md" onClick={() => exportRowsCsv(rows)}>
+            <Download className="h-3 w-3" />
+            Planilha CSV ({rows.length})
+          </Button>
+          <Button size="md" onClick={() => exportRowsJson(rows)}>
+            <Download className="h-3 w-3" />
+            JSON (linhas)
+          </Button>
+        </div>
+      </Card>
+
+      <Card title="Zona de perigo">
+        <Button size="md" variant="danger" onClick={clear} disabled={clearing}>
+          <Trash2 className="h-3 w-3" />
+          Apagar todos os anúncios salvos
         </Button>
       </Card>
 
@@ -95,39 +94,54 @@ export function Config() {
         </Card>
       )}
 
-      <Card title="Exportar">
-        <div className="flex flex-wrap gap-2">
-          <Button size="md" onClick={() => exportRowsCsv(rows)}>
-            <Download className="h-3 w-3" />
-            CSV ({rows.length})
-          </Button>
-          <Button size="md" onClick={() => exportRowsJson(rows)}>
-            <Download className="h-3 w-3" />
-            JSON (linhas)
-          </Button>
-          <Button size="md" onClick={() => exportDbJson(db)}>
-            <Download className="h-3 w-3" />
-            db.json cru
-          </Button>
+      {/* Avançado: backup/restauração e dados brutos — não é pro uso do dia a dia */}
+      <details className="border border-border bg-surface">
+        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold">Avançado</summary>
+        <div className="flex flex-col gap-4 border-t border-border p-3">
+          <Card title="Restaurar backup">
+            <p className="mb-2 text-xs text-subtle">
+              Traz os anúncios de um arquivo de backup exportado antes (botão "Baixar backup completo"). Junta com o que
+              já existe — não apaga nada.
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importFile(file);
+              }}
+            />
+            <Button size="md" onClick={() => fileRef.current?.click()} disabled={importing}>
+              <Upload className="h-3 w-3" />
+              {importing ? "Importando…" : "Selecionar arquivo"}
+            </Button>
+          </Card>
+
+          <Card title="Backup completo">
+            <p className="mb-2 text-xs text-subtle">Arquivo com todos os anúncios salvos, do jeito que a extensão guarda.</p>
+            <Button size="md" onClick={() => exportDbJson(db)}>
+              <Download className="h-3 w-3" />
+              Baixar backup completo
+            </Button>
+          </Card>
+
+          <Card title={`Dados brutos (${Object.keys(db).length} anúncios)`}>
+            {error ? (
+              <ErrorBox message={error} onRetry={refetch} />
+            ) : (
+              <pre
+                tabIndex={0}
+                aria-label="Dados brutos dos anúncios salvos"
+                className="max-h-[520px] overflow-auto border border-border bg-bg p-3 text-xs tnum focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                {JSON.stringify(db, null, 2)}
+              </pre>
+            )}
+          </Card>
         </div>
-      </Card>
-
-      <Card title="Zona de perigo">
-        <Button size="md" variant="danger" onClick={clear} disabled={clearing}>
-          <Trash2 className="h-3 w-3" />
-          Limpar DB
-        </Button>
-      </Card>
-
-      <Card title={`JSON cru (${Object.keys(db).length} registros)`}>
-        {error ? (
-          <ErrorBox message={error} onRetry={refetch} />
-        ) : (
-          <pre className="max-h-[520px] overflow-auto border border-border bg-bg p-3 text-xs tnum">
-            {JSON.stringify(db, null, 2)}
-          </pre>
-        )}
-      </Card>
+      </details>
     </div>
   );
 }

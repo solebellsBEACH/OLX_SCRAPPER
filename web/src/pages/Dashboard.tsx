@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { Link } from "react-router-dom";
-import type { AdRow, VehicleAlert } from "@/types";
+import type { AdRow } from "@/types";
 import { useDb } from "@/lib/useDb";
-import { computeStats } from "@/lib/rows";
+import { computeStats, relevantAlerts } from "@/lib/rows";
+import { isGoodDeal } from "@/lib/colors";
 import { formatBRL, formatKm, formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/Layout";
-import { ProxyStatus } from "@/components/ProxyStatus";
 import { Badge } from "@/components/ui/badge";
 import { Empty, ErrorBox, Loading } from "@/components/States";
 import { MarketStatusBadge, OpportunityBadge, marketPhrase } from "@/components/VehicleAnalysisBadges";
@@ -17,15 +17,9 @@ const BELOW_MARKET_LIMIT = 5;
 const TO_VERIFY_LIMIT = 6;
 /** abaixo disso (%) já é considerado "meaningfully" abaixo do mercado pra entrar na seção. */
 const BELOW_MARKET_THRESHOLD = -10;
-/** alertas informativos sobre a própria comparação (não sobre o veículo) não contam como "ponto pra verificar". */
-const INFORMATIONAL_ALERT_TYPES = new Set(["insufficient_market_sample"]);
 
 function titleFor(r: AdRow): string {
   return [r.marca, r.modelo].filter(Boolean).join(" ") || r.modeloVersao;
-}
-
-function isRelevantAlert(a: VehicleAlert): boolean {
-  return !INFORMATIONAL_ALERT_TYPES.has(a.type);
 }
 
 /**
@@ -51,8 +45,9 @@ export function Dashboard() {
   const { rows, status, error, refetch } = useDb();
   const stats = useMemo(() => computeStats(rows), [rows]);
 
+  // mesmo critério do selo "Bom negócio" da Listagem (isGoodDeal), pra os números baterem
   const goodOpportunityCount = useMemo(
-    () => rows.filter((r) => r.analysis.opportunityLabel === "good" || r.analysis.opportunityLabel === "excellent").length,
+    () => rows.filter((r) => isPlausibleVehicle(r) && isGoodDeal(r.analysis)).length,
     [rows],
   );
 
@@ -62,23 +57,21 @@ export function Dashboard() {
   );
 
   const toVerifyCount = useMemo(
-    () => rows.filter((r) => isPlausibleVehicle(r) && r.analysis.alerts.some(isRelevantAlert)).length,
+    () => rows.filter((r) => isPlausibleVehicle(r) && relevantAlerts(r.analysis).length > 0).length,
     [rows],
   );
 
-  // "boa oportunidade, mas sem exagerar" — score alto, comparação de mercado utilizável, e
-  // sem múltiplos alertas relevantes acumulados (não empurra um carro com 3 pontos de
-  // atenção só porque o preço parece ótimo).
+  // "Bom negócio" da Listagem (preço abaixo do mercado, sem preço suspeito), sem múltiplos
+  // alertas relevantes acumulados (não empurra um carro com 3 pontos de atenção só porque
+  // o preço parece ótimo), ordenado pela nota de Oportunidade.
   const bestOpportunities = useMemo(
     () =>
       rows
         .filter(
           (r) =>
             isPlausibleVehicle(r) &&
-            r.price != null &&
-            r.analysis.priceStatus != null &&
-            (r.analysis.opportunityLabel === "good" || r.analysis.opportunityLabel === "excellent") &&
-            r.analysis.alerts.filter(isRelevantAlert).length <= 1,
+            isGoodDeal(r.analysis) &&
+            relevantAlerts(r.analysis).length <= 1,
         )
         .sort((a, b) => (b.analysis.opportunityScore ?? 0) - (a.analysis.opportunityScore ?? 0))
         .slice(0, BEST_OPPORTUNITIES_LIMIT),
@@ -102,8 +95,8 @@ export function Dashboard() {
   const toVerify = useMemo(
     () =>
       rows
-        .filter((r) => isPlausibleVehicle(r) && r.analysis.alerts.some(isRelevantAlert))
-        .sort((a, b) => b.analysis.alerts.filter(isRelevantAlert).length - a.analysis.alerts.filter(isRelevantAlert).length)
+        .filter((r) => isPlausibleVehicle(r) && relevantAlerts(r.analysis).length > 0)
+        .sort((a, b) => relevantAlerts(b.analysis).length - relevantAlerts(a.analysis).length)
         .slice(0, TO_VERIFY_LIMIT),
     [rows],
   );
@@ -113,9 +106,7 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="Dashboard">
-        <ProxyStatus />
-      </PageHeader>
+      <PageHeader title="Dashboard" />
 
       <LearnPage
         title="Dashboard"
@@ -142,7 +133,7 @@ export function Dashboard() {
                 hint={stats.avgPrice != null ? `Preço mediano · média ${formatBRL(stats.avgPrice)}` : "Preço mediano"}
               />
               <SummaryCard
-                label="Boas oportunidades"
+                label="Bons negócios"
                 value={`${formatNumber(goodOpportunityCount)}`}
                 hint={
                   pct(goodOpportunityCount, stats.total) != null
@@ -165,8 +156,8 @@ export function Dashboard() {
             <LearnNote title="O que cada número significa">
               <p><strong>Veículos analisados:</strong> total de anúncios na base.</p>
               <p><strong>Preço típico:</strong> a <em>mediana</em> (o valor do meio), que sofre menos com anúncios muito caros ou muito baratos do que a média.</p>
-              <p><strong>Boas oportunidades:</strong> anúncios com oportunidade "Boa" ou "Excelente" (nota 70 ou mais de 100).</p>
-              <p><strong>Pontos para verificar:</strong> anúncios com algum alerta relevante (preço fora do padrão, km suspeita etc.). Não é acusação, só um convite a checar.</p>
+              <p><strong>Bons negócios:</strong> anúncios com o selo verde "Bom negócio" da Listagem — preço pelo menos 5% abaixo da média de similares. Preço 25% ou mais abaixo não entra: aparece como "Verificar preço".</p>
+              <p><strong>Pontos para verificar:</strong> anúncios com algum alerta sobre o carro (preço fora do padrão, km suspeita etc.). Ter poucos similares para comparar não conta como alerta. Não é acusação, só um convite a checar.</p>
               <p><strong>Comparação de mercado:</strong> % de anúncios que têm ao menos 2 outros da mesma marca, modelo e ano para servir de referência.</p>
             </LearnNote>
             <p className="text-xs text-subtle">
@@ -177,11 +168,11 @@ export function Dashboard() {
 
           {/* 2. Melhores oportunidades */}
           <Section
-            title="Melhores oportunidades"
+            title="Melhores negócios"
             caption="Veículos que se destacam pelos dados disponíveis — não é uma recomendação de compra."
           >
             <LearnNote className="mb-3" title="Como esta lista é montada">
-              <p>Entram carros com oportunidade <strong>Boa ou Excelente</strong>, preço e comparação de mercado disponíveis e <strong>no máximo 1 ponto de atenção</strong> — assim um preço ótimo não esconde vários problemas. Ordenados pela nota (até 8 carros).</p>
+              <p>Entram os carros com selo <strong>"Bom negócio"</strong> na Listagem e <strong>no máximo 1 ponto de atenção</strong> — assim um preço ótimo não esconde vários problemas. Ordenados pela nota de Oportunidade (até 8 carros). Se um "Bom negócio" não aparece aqui, é porque tem 2 ou mais alertas.</p>
             </LearnNote>
             {bestOpportunities.length === 0 ? (
               <EmptyNote text="Nenhum anúncio se destacou nesse critério ainda." />
@@ -194,7 +185,7 @@ export function Dashboard() {
                       <OpportunityBadge analysis={r.analysis} />
                     </div>
                     <p className="text-xs text-subtle">
-                      {pointsToVerifyText(r.analysis.alerts.filter(isRelevantAlert).length)}
+                      {pointsToVerifyText(relevantAlerts(r.analysis).length)}
                     </p>
                   </VehicleMiniCard>
                 ))}
@@ -235,14 +226,14 @@ export function Dashboard() {
           {/* 4. Pontos para verificar */}
           <Section title="Pontos para verificar" caption="Dados que merecem uma checagem antes de decidir — não são acusações.">
             <LearnNote className="mb-3" title="O que são estes pontos">
-              <p>Alertas gerados automaticamente: preço muito fora do mercado, poucos anúncios para comparar, quilometragem incomum para a idade (possível odômetro adulterado). Alertas <strong>informativos</strong> (ex.: "boa condição estimada") não entram aqui. Vale conferir com o vendedor.</p>
+              <p>Alertas gerados automaticamente: preço muito fora do mercado, quilometragem incomum para a idade (possível odômetro adulterado). Avisos <strong>informativos</strong> sobre a base (ex.: poucos anúncios para comparar) não entram aqui. Vale conferir com o vendedor.</p>
             </LearnNote>
             {toVerify.length === 0 ? (
               <EmptyNote text="Nenhum ponto relevante para verificar no momento." />
             ) : (
               <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {toVerify.map((r) => {
-                  const relevant = r.analysis.alerts.filter(isRelevantAlert);
+                  const relevant = relevantAlerts(r.analysis);
                   const [first, ...rest] = relevant;
                   return (
                     <VehicleMiniCard key={r.id} row={r}>
@@ -286,7 +277,7 @@ export function Dashboard() {
           </Section>
 
           <p className="text-sm text-muted">
-            <Link to="/listagem" className="text-accent hover:underline">
+            <Link to="/listagem" className="text-accent underline underline-offset-2 hover:text-fg">
               Ver todos os anúncios na Listagem →
             </Link>
           </p>

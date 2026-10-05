@@ -8,7 +8,7 @@ export function registerLoadPendingAction(): void {
   loadPendingBtn.addEventListener("click", () => {
     void (async () => {
       lockButtons(true);
-      setStatus("⏳ Carregando pendentes do db.json...");
+      setStatus("⏳ Carregando pendentes salvos...");
       try {
         const response = await send("loadPending");
         if (!response.ok) {
@@ -23,7 +23,7 @@ export function registerLoadPendingAction(): void {
         renderPage();
         setStatus(
           result.count === 0
-            ? "ℹ️ Nada pendente no DB — tudo que já foi listado passou por 'Analisar selecionados'."
+            ? "ℹ️ Nada pendente na sua lista — tudo que já foi listado passou por 'Analisar selecionados'."
             : `✅ ${result.count} carro(s) pendente(s) carregado(s). Selecione e clique em "Analisar selecionados".`,
         );
       } finally {

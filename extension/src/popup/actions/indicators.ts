@@ -12,7 +12,7 @@ export function setIndicatorsButtonLabel(): void {
 
 async function showIndicatorsClick(): Promise<void> {
   lockButtons(true);
-  setStatus("⏳ Verificando indicadores já salvos no DB...");
+  setStatus("⏳ Verificando anúncios já salvos...");
   try {
     const response = await send("showIndicators");
     if (!response.ok) {
@@ -25,7 +25,7 @@ async function showIndicatorsClick(): Promise<void> {
     setStatus(
       r.count === 0
         ? "ℹ️ Nenhum card encontrado nesta página."
-        : `✅ ${r.count} card(s) na tela — ${r.done} já analisado(s) (verde) · ${r.pending} pendente(s) (amarelo).`,
+        : `✅ ${r.count} card(s) na tela — ${r.done} já analisado(s) (verde) · ${r.pending} aguardando análise (cinza).`,
     );
   } finally {
     lockButtons(false);

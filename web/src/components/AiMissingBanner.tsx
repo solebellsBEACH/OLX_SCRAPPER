@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { useAiStatus } from "@/lib/useDb";
 
-/** Aviso global: o sistema só funciona com IA. Some na própria página de Config, que já tem o aviso. */
+/** Aviso global: o sistema só funciona com IA. Some na própria página de Configurações, que já tem o aviso. */
 export function AiMissingBanner() {
   const { state } = useAiStatus();
   const { pathname } = useLocation();

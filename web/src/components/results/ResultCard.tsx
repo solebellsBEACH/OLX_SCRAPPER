@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge, opportunityPhrase } from "./StatusBadge";
 import { ResultDetails } from "./ResultDetails";
 import { vehicleName } from "./ResultRow";
+import { CONDITION_LABEL, conditionText } from "@/components/VehicleAnalysisBadges";
 
 interface Props {
   row: AdRow;
@@ -53,6 +54,9 @@ export function ResultCard({ row, selected, expanded, onSelect, onToggle }: Prop
           <StatusBadge analysis={row.analysis} />
           <span className="text-xs text-muted">{opportunityPhrase(row.analysis)}</span>
         </div>
+        <p className="tnum text-xs text-muted">
+          {CONDITION_LABEL}: {conditionText(row.record.categoria?.score)}
+        </p>
 
         {expanded && (
           <div className="border-t border-border pt-3">

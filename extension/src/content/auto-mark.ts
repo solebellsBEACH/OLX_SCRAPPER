@@ -27,7 +27,7 @@ function collectPendingIds(): string[] {
 
 /**
  * Consulta o background (leitura rasa do db.json, sem IA) pra saber o
- * status dos cards ainda sem marcação e pinta borda verde/amarela + score.
+ * status dos cards ainda sem marcação e pinta borda verde/cinza + score.
  * Roda ao carregar a página e de novo (throttled) sempre que a listagem
  * ganha cards novos (scroll infinito, troca de filtro, etc.).
  */

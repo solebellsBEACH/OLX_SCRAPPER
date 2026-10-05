@@ -4,6 +4,8 @@ import { formatBRL, formatKm } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HELP, HelpTip } from "@/components/ui/tooltip";
+import { relevantAlerts } from "@/lib/rows";
+import { CONDITION_LABEL, conditionText } from "@/components/VehicleAnalysisBadges";
 import { opportunityPhrase, StatusBadge } from "./StatusBadge";
 import { ResultDetails } from "./ResultDetails";
 
@@ -19,7 +21,8 @@ interface Props {
 
 /** Duas <tr>: a linha principal (5 colunas) e, abaixo, a linha secundária + detalhes. */
 export function ResultRow({ row, selected, expanded, onSelect, onToggle }: Props) {
-  const alerts = row.analysis.alerts.length;
+  const alertList = relevantAlerts(row.analysis);
+  const alerts = alertList.length;
   return (
     <>
       <tr
@@ -62,14 +65,17 @@ export function ResultRow({ row, selected, expanded, onSelect, onToggle }: Props
       >
         <td />
         <td colSpan={5} className="px-3 pb-3 pt-1 text-xs text-muted">
-          <span className="block truncate">{row.versao ? `Descrição: ${row.versao}` : "Descrição: —"}</span>
+          <span className="block truncate">{row.versao ? `Versão: ${row.versao}` : "Versão: —"}</span>
           <span className="flex flex-wrap items-center gap-x-3">
             <span className="inline-flex items-center gap-1">
-              Oportunidade: {opportunityPhrase(row.analysis)}
-              <HelpTip text={HELP.oportunidade} />
+              Preço: {opportunityPhrase(row.analysis)}
+              <HelpTip text={HELP.preco} />
+            </span>
+            <span className="tnum">
+              {CONDITION_LABEL}: {conditionText(row.record.categoria?.score)}
             </span>
             {alerts > 0 && (
-              <span className="inline-flex items-center gap-1 text-warn" title={row.analysis.alerts.map((a) => a.title).join(" · ")}>
+              <span className="inline-flex items-center gap-1 text-warn" title={alertList.map((a) => a.title).join(" · ")}>
                 <AlertTriangle aria-hidden className="h-3 w-3" />
                 {alerts === 1 ? "1 alerta" : `${alerts} alertas`}
               </span>

@@ -4,8 +4,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Brain, Check, ExternalLink, Gauge, Minus } from "lucide-react";
 import { api, ApiError, type CompareCarInput } from "@/lib/api";
 import { useDb } from "@/lib/useDb";
-import { toRows } from "@/lib/rows";
-import { formatBRL, formatKm, formatPricePerKm } from "@/lib/format";
+import { relevantAlerts, rowsByIds } from "@/lib/rows";
+import { formatBRL, formatKm } from "@/lib/format";
 import { imgFallback, proxiedImg } from "@/lib/img";
 import { PageHeader } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { Empty, ErrorBox, Loading } from "@/components/States";
 import { cn } from "@/lib/cn";
 import type { AdRow, CarMetric, CompareRankingItem } from "@/types";
 import { VehicleCompactSummary } from "@/components/VehicleCompactSummary";
+import { CONDITION_LABEL, conditionText } from "@/components/VehicleAnalysisBadges";
 
 function fmtKmL(v: number | null | undefined): string {
   return v != null ? `${v.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km/l` : "—";
@@ -67,8 +68,8 @@ function computeDifferences(rows: AdRow[]): string[] {
       lines.push(`${displayName(closer)} está mais próximo do preço médio do mercado.`);
     }
 
-    const aAlerts = a.analysis.alerts.length;
-    const bAlerts = b.analysis.alerts.length;
+    const aAlerts = relevantAlerts(a.analysis).length;
+    const bAlerts = relevantAlerts(b.analysis).length;
     if (aAlerts !== bAlerts) {
       const more = aAlerts > bAlerts ? a : b;
       lines.push(`${displayName(more)} possui mais alertas (${Math.max(aAlerts, bAlerts)} vs ${Math.min(aAlerts, bAlerts)}).`);
@@ -104,11 +105,12 @@ function computeDifferences(rows: AdRow[]): string[] {
     lines.push(`${displayName(closest)} está mais próximo do preço médio do mercado.`);
   }
 
-  const maxAlerts = Math.max(...rows.map((r) => r.analysis.alerts.length));
+  const alertCount = (r: AdRow) => relevantAlerts(r.analysis).length;
+  const maxAlerts = Math.max(...rows.map(alertCount));
   if (maxAlerts > 0) {
-    const fewest = rows.reduce((m, r) => (r.analysis.alerts.length < m.analysis.alerts.length ? r : m));
-    if (fewest.analysis.alerts.length < maxAlerts) {
-      lines.push(`${displayName(fewest)} tem menos alertas (${fewest.analysis.alerts.length}).`);
+    const fewest = rows.reduce((m, r) => (alertCount(r) < alertCount(m) ? r : m));
+    if (alertCount(fewest) < maxAlerts) {
+      lines.push(`${displayName(fewest)} tem menos alertas (${alertCount(fewest)}).`);
     }
   }
 
@@ -136,12 +138,14 @@ function computeTradeoff(rows: AdRow[]): string | null {
 
 export function Compare() {
   const [params] = useSearchParams();
-  const { db, status, error, refetch } = useDb();
+  const { rows: allRows, status, error, refetch } = useDb();
 
-  const ids = (params.get("ids") ?? "").split(",").filter(Boolean).slice(0, 4);
+  const idsParam = params.get("ids") ?? "";
+  // mesmas linhas da Listagem (média de mercado calculada com a base inteira, não só
+  // com os carros comparados)
   const rows = useMemo(
-    () => toRows(Object.fromEntries(ids.filter((i) => db[i]).map((i) => [i, db[i]]))),
-    [db, ids],
+    () => rowsByIds(allRows, idsParam.split(",").filter(Boolean).slice(0, 4)),
+    [allRows, idsParam],
   );
 
   const differences = useMemo(() => computeDifferences(rows), [rows]);
@@ -226,7 +230,7 @@ export function Compare() {
           title="Selecione de 2 a 4 anúncios"
           hint={
             <>
-              Vá para a <Link to="/listagem" className="text-accent hover:underline">Listagem</Link>,
+              Vá para a <Link to="/listagem" className="text-accent underline underline-offset-2">Listagem</Link>,
               marque de 2 a 4 linhas e clique em "Comparar".
             </>
           }
@@ -302,7 +306,7 @@ export function Compare() {
               <Th>Anúncio</Th>
               {rows.map((r) => (
                 <td key={r.id} className="min-w-[200px] p-3 align-top">
-                  <div className="aspect-[4/3] overflow-hidden border border-border">
+                  <div className="aspect-[4/3] overflow-hidden border border-border bg-surface">
                     {r.thumb ? (
                       <img
                         src={proxiedImg(r.thumb)}
@@ -311,7 +315,9 @@ export function Compare() {
                         loading="lazy"
                         onError={(e) => imgFallback(e, r.thumb)}
                       />
-                    ) : null}
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-sm text-subtle">sem imagem</div>
+                    )}
                   </div>
                   <Link
                     to={`/anuncio/${r.id}`}
@@ -335,8 +341,8 @@ export function Compare() {
             <Row label="Preço" rows={rows} render={(r) => formatBRL(r.price)} best={(r) => r.price === minPrice} />
             <Row label="Preço antigo" rows={rows} render={(r) => (r.priceOld != null ? formatBRL(r.priceOld) : "—")} />
             <Row label="Km" rows={rows} render={(r) => formatKm(r.km)} best={(r) => r.km === minKm} />
-            <Row label="R$/km" rows={rows} render={(r) => formatPricePerKm(r.pricePerKm)} />
             <Row label="Ano" rows={rows} render={(r) => r.ano ?? "—"} best={(r) => r.ano === maxAno} />
+            <Row label={CONDITION_LABEL} rows={rows} render={(r) => conditionText(r.record.categoria?.score)} />
             <Row label="Marca" rows={rows} render={(r) => r.marca ?? "—"} />
             <Row label="Versão" rows={rows} render={(r) => r.versao ?? "—"} />
             <Row label="Motor" rows={rows} render={(r) => r.record.categoria?.motor ?? "—"} />
@@ -387,11 +393,15 @@ export function Compare() {
 
             <tr className="border-b border-border bg-bg">
               <Th>Opcionais</Th>
-              {rows.map((r) => (
-                <td key={r.id} className="p-3 text-right text-muted tnum">
-                  {optionsOf(r.record.detail.properties).length}
-                </td>
-              ))}
+              {rows.map((r) => {
+                // sem a propriedade "Opcionais" no anúncio não dá pra dizer que tem 0
+                const n = optionsOf(r.record.detail.properties).length;
+                return (
+                  <td key={r.id} className="p-3 text-right text-muted tnum">
+                    {n > 0 ? n : "—"}
+                  </td>
+                );
+              })}
             </tr>
             {allOptions.map((opt) => (
               <tr key={opt} className="border-b border-border last:border-0">

@@ -51,11 +51,11 @@ export async function analyzeTargets(targets: Array<{ id: string; url: string }>
     const skN = result.skipped?.length ?? 0;
     const ncN = result.nonCar?.length ?? 0;
     setStatus(
-      `✅ ${okN} salvo(s) no DB` +
+      `✅ ${okN} salvo(s) na lista` +
         (skN ? ` · ${skN} já analisado(s) (pulados)` : "") +
         (ncN ? ` · ${ncN} não-carro(s) ignorado(s)` : "") +
         (errN ? ` · ${errN} com erro` : "") +
-        `. Use "Ver DB" para conferir.`,
+        `. Use "Ver dados salvos" para conferir.`,
     );
   } finally {
     lockButtons(false);

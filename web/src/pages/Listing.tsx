@@ -78,7 +78,7 @@ export function Listing() {
 
   const columns = useMemo<ColumnDef<AdRow>[]>(
     () => [
-      { id: "select", enableSorting: false, header: () => null },
+      { id: "select", enableSorting: false, header: () => <span className="sr-only">Selecionar</span> },
       {
         id: "veiculo",
         accessorFn: vehicleName,
@@ -112,7 +112,7 @@ export function Listing() {
       },
       // "date" existe só como chave de ordenação padrão (sem coluna visível)
       { id: "date", accessorKey: "date", header: () => null, sortUndefined: "last" },
-      { id: "expand", enableSorting: false, header: () => null },
+      { id: "expand", enableSorting: false, header: () => <span className="sr-only">Detalhes</span> },
     ],
     [],
   );
@@ -133,8 +133,9 @@ export function Listing() {
   const selectedIds = Object.keys(selection).filter((k) => selection[k]);
   const canCompare = selectedIds.length >= 2 && selectedIds.length <= 4;
   const { pageIndex, pageSize } = table.getState().pagination;
-  const pager = (className?: string) => (
+  const pager = (label: string, className?: string) => (
     <Pagination
+      label={label}
       className={className}
       page={pageIndex}
       pageCount={table.getPageCount()}
@@ -248,7 +249,7 @@ export function Listing() {
             </div>
           ) : (
             <>
-              {pager()}
+              {pager("Paginação (topo da lista)")}
               <div key={listKey} className="animate-fade-in motion-reduce:animate-none">
                 <ResultsTable table={table} expanded={expanded} onToggle={toggleExpanded} />
                 <div className="stagger grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4 sm:grid-cols-2 lg:hidden">
@@ -264,7 +265,7 @@ export function Listing() {
                   ))}
                 </div>
               </div>
-              {pager("mt-2")}
+              {pager("Paginação (fim da lista)", "mt-2")}
             </>
           )}
         </>

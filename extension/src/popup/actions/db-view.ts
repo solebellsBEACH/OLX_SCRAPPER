@@ -44,7 +44,7 @@ export function registerDbViewActions(): void {
         const count = Object.keys(response.db ?? {}).length;
         await refreshDbFlags();
         renderPage();
-        setStatus(`⬆️ DB importado: ${count} registros.`);
+        setStatus(`⬆️ Backup restaurado: ${count} anúncios na lista.`);
       } catch (err) {
         setStatus(`❌ Falha ao importar: ${(err as Error).message}`);
       }
@@ -52,12 +52,13 @@ export function registerDbViewActions(): void {
   });
 
   clearDbBtn.addEventListener("click", () => {
+    if (!confirm("Apagar todos os anúncios salvos? Não dá pra desfazer.")) return;
     void (async () => {
       await send("clearDb");
       await refreshDbFlags();
       renderPage();
       if (!dbDumpEl.hidden) dbDumpEl.textContent = "{}";
-      setStatus("🗑️ DB limpo.");
+      setStatus("🗑️ Todos os anúncios salvos foram apagados.");
     })();
   });
 }

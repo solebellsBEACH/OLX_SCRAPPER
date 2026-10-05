@@ -5,8 +5,10 @@ import type { AdRow } from "@/types";
 import { formatBRL, formatKm } from "@/lib/format";
 import {
   AlertsBadge,
+  CONDITION_LABEL,
   CONFIDENCE_TEXT,
   MarketStatusBadge,
+  conditionText,
   OpportunityBadge,
 } from "@/components/VehicleAnalysisBadges";
 
@@ -15,7 +17,7 @@ export function VehicleCompactSummary({ row, title }: { row: AdRow; title: strin
   const confidenceText = analysis.confidenceLabel ? CONFIDENCE_TEXT[analysis.confidenceLabel] : "—";
 
   return (
-    <div className="flex flex-col gap-2 border border-border bg-surface p-3">
+    <div className="flex min-w-0 flex-col gap-2 border border-border bg-surface p-3">
       <p className="truncate text-sm font-semibold" title={title}>
         {title}
       </p>
@@ -34,6 +36,9 @@ export function VehicleCompactSummary({ row, title }: { row: AdRow; title: strin
         <Row label="Oportunidade">
           <OpportunityBadge analysis={analysis} />
         </Row>
+        <Row label={CONDITION_LABEL}>
+          <span className="tnum">{conditionText(row.record.categoria?.score)}</span>
+        </Row>
         <Row label="Confiança">
           <span>{confidenceText}</span>
         </Row>
@@ -47,9 +52,9 @@ export function VehicleCompactSummary({ row, title }: { row: AdRow; title: strin
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
       <dt className="text-subtle">{label}</dt>
-      <dd>{children}</dd>
+      <dd className="min-w-0">{children}</dd>
     </div>
   );
 }
