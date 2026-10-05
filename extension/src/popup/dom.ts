@@ -1,0 +1,78 @@
+const $ = <T extends HTMLElement>(id: string): T => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`elemento #${id} não encontrado`);
+  return el as T;
+};
+
+export const statusEl = $<HTMLDivElement>("status");
+export const listEl = $<HTMLDivElement>("list");
+export const pagerEl = $<HTMLDivElement>("pager");
+export const pageInfoEl = $<HTMLSpanElement>("pageInfo");
+export const toolbarEl = $<HTMLDivElement>("toolbar");
+export const dbDumpEl = $<HTMLPreElement>("dbDump");
+export const analyzeBtn = $<HTMLButtonElement>("analyzeBtn");
+export const quickAnalyzeBtn = $<HTMLButtonElement>("quickAnalyzeBtn");
+export const showIndicatorsBtn = $<HTMLButtonElement>("showIndicatorsBtn");
+export const loadPendingBtn = $<HTMLButtonElement>("loadPendingBtn");
+export const crawlBtn = $<HTMLButtonElement>("crawlBtn");
+export const maxPagesEl = $<HTMLInputElement>("maxPages");
+export const scrollEachEl = $<HTMLInputElement>("scrollEach");
+export const skipKnownEl = $<HTMLInputElement>("skipKnown");
+export const saveToDbEl = $<HTMLInputElement>("saveToDb");
+export const prevBtn = $<HTMLButtonElement>("prevBtn");
+export const nextBtn = $<HTMLButtonElement>("nextBtn");
+export const selAllBtn = $<HTMLInputElement>("selAllBtn");
+export const selectAllBtn = $<HTMLButtonElement>("selectAllBtn");
+export const selectCountInput = $<HTMLInputElement>("selectCountInput");
+export const selectCountBtn = $<HTMLButtonElement>("selectCountBtn");
+export const clearSelBtn = $<HTMLButtonElement>("clearSelBtn");
+export const analyzeSelBtn = $<HTMLButtonElement>("analyzeSelBtn");
+export const viewDbBtn = $<HTMLButtonElement>("viewDbBtn");
+export const importDbBtn = $<HTMLButtonElement>("importDbBtn");
+export const importDbInput = $<HTMLInputElement>("importDbInput");
+export const clearDbBtn = $<HTMLButtonElement>("clearDbBtn");
+export const openPanelBtn = $<HTMLButtonElement>("openPanelBtn");
+export const tabCrawlBtn = $<HTMLButtonElement>("tabCrawlBtn");
+export const tabAnalyzeBtn = $<HTMLButtonElement>("tabAnalyzeBtn");
+export const panelCrawl = $<HTMLElement>("panelCrawl");
+export const panelAnalyze = $<HTMLElement>("panelAnalyze");
+
+// Modo Iniciante / alternância de modo
+export const modeBeginnerBtn = $<HTMLButtonElement>("modeBeginnerBtn");
+export const modeAdvancedBtn = $<HTMLButtonElement>("modeAdvancedBtn");
+export const beginnerView = $<HTMLElement>("beginnerView");
+export const advancedView = $<HTMLElement>("advancedView");
+export const choiceCurrent = $<HTMLButtonElement>("choiceCurrent");
+export const choiceAll = $<HTMLButtonElement>("choiceAll");
+export const optPages = $<HTMLInputElement>("optPages");
+export const pagesCard = $<HTMLElement>("pagesCard");
+export const optQuickCount = $<HTMLInputElement>("optQuickCount");
+export const quickCountCard = $<HTMLElement>("quickCountCard");
+export const beginnerCountEl = $<HTMLParagraphElement>("beginnerCount");
+export const startBtn = $<HTMLButtonElement>("startBtn");
+export const startHintEl = $<HTMLParagraphElement>("startHint");
+export const beginnerStatusEl = $<HTMLDivElement>("beginnerStatus");
+export const beginnerStatusText = $<HTMLSpanElement>("beginnerStatusText");
+export const openResultsBtn = $<HTMLButtonElement>("openResultsBtn");
+export const cancelBtn = $<HTMLButtonElement>("cancelBtn");
+export const cancelAdvBtn = $<HTMLButtonElement>("cancelAdvBtn");
+export const tabConfigBtn = $<HTMLButtonElement>("tabConfigBtn");
+export const panelConfig = $<HTMLElement>("panelConfig");
+export const aiMissingToast = $<HTMLButtonElement>("aiMissingToast");
+export const pendingToast = $<HTMLButtonElement>("pendingToast");
+export const pendingToastText = $<HTMLSpanElement>("pendingToastText");
+export const pendingDialog = $<HTMLDialogElement>("pendingDialog");
+export const pendingDialogText = $<HTMLParagraphElement>("pendingDialogText");
+export const pendingYes = $<HTMLButtonElement>("pendingYes");
+
+// Tutorial guiado
+export const tourBtn = $<HTMLButtonElement>("tourBtn");
+export const tourOverlay = $<HTMLDivElement>("tourOverlay");
+export const tourHighlight = $<HTMLDivElement>("tourHighlight");
+export const tourCard = $<HTMLDivElement>("tourCard");
+export const tourStepLabel = $<HTMLParagraphElement>("tourStepLabel");
+export const tourTitle = $<HTMLHeadingElement>("tourTitle");
+export const tourText = $<HTMLParagraphElement>("tourText");
+export const tourSkip = $<HTMLButtonElement>("tourSkip");
+export const tourBack = $<HTMLButtonElement>("tourBack");
+export const tourNext = $<HTMLButtonElement>("tourNext");

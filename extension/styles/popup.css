@@ -6,16 +6,20 @@
   --bg: #f4f5f7;
   --card: #ffffff;
   --text: #1f2430;
-  --muted: #6b7280;
+  /* #5f6673: >= 4.5:1 sobre --bg (#f4f5f7), --card e --accent-soft (#6b7280 dava 4,43:1) */
+  --muted: #5f6673;
   --border: #e6e8ee;
   --border-strong: #d3d6de;
-  --accent: #6d28d9;
-  --accent-hover: #5b21b6;
-  --accent-soft: #f1ecfe;
-  --ok-bg: #e6f4ea;
-  --ok-fg: #137333;
-  --warn-bg: #fef7e0;
-  --warn-fg: #b06000;
+  /* Acento e semáforo derivados do Design.md (Apple ref.): Purchase Blue #0071e3,
+     Battery Green #00d959 (escurecido p/ contraste em texto sobre branco), New
+     Orange #b64400. Mesma paleta usada no painel (web/src/index.css). */
+  --accent: #0071e3;
+  --accent-hover: #0058b2;
+  --accent-soft: #e3f0fd;
+  --ok-bg: #e8faef;
+  --ok-fg: #009440;
+  --warn-bg: #fff3e8;
+  --warn-fg: #b64400;
   --err-bg: #fce8e6;
   --err-fg: #c5221f;
   --radius: 10px;
@@ -30,13 +34,15 @@
     --muted: #9aa1ad;
     --border: #262b34;
     --border-strong: #363d49;
-    --accent: #8b5cf6;
-    --accent-hover: #7c4dff;
-    --accent-soft: #211a38;
-    --ok-bg: #10281a;
-    --ok-fg: #6ee7a8;
-    --warn-bg: #2a2410;
-    --warn-fg: #f0c24b;
+    /* Purchase Blue clareado p/ legibilidade sobre preto; Battery Green literal
+       (feito pra telas escuras); Launch Orange + Ember Black (badge). */
+    --accent: #2997ff;
+    --accent-hover: #5eb5ff;
+    --accent-soft: #0e2642;
+    --ok-bg: #0c2b18;
+    --ok-fg: #00d959;
+    --warn-bg: #311400;
+    --warn-fg: #ff791b;
     --err-bg: #2a1414;
     --err-fg: #f2a19d;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -56,7 +62,9 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  padding: 16px;
+  /* popup do Chrome tem no máximo 600px de altura: espaçamentos enxutos pra o
+     "Começar análise" do modo Iniciante caber sem rolar */
+  padding: 10px 12px;
   min-height: 100vh;
 }
 
@@ -72,7 +80,7 @@ body.as-tab {
   max-width: 440px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 body.as-tab #app {
@@ -87,37 +95,119 @@ body.as-tab #app {
 .app-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 2px;
+}
+
+.app-head .btn {
+  white-space: nowrap;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand-txt {
+  min-width: 0;
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  flex: none;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   background: var(--accent-soft);
-  border-radius: 9px;
-  font-size: 18px;
+  border-radius: 8px;
+  font-size: 16px;
 }
 
 .app-head h1 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 1.25;
+  white-space: nowrap;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
+.app-head #tourBtn {
+  margin-left: auto;
+}
+
 .sub {
-  margin: 1px 0 0;
-  font-size: 12px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Abas ---- */
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 3px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.tab-btn {
+  flex: 1;
+  appearance: none;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tab-btn:hover {
+  background: var(--bg);
+}
+
+.tab-btn[aria-selected="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.card-hint {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+.dot-done {
+  background: #16a34a;
+}
+
+.dot-pending {
+  background: #6b7280;
+}
+
+.dot-quick {
+  background: #3b82f6;
 }
 
 /* ---- Cartões ---- */
@@ -126,7 +216,7 @@ body.as-tab #app {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 12px;
+  padding: 10px 12px;
 }
 
 .card-title {
@@ -135,7 +225,7 @@ body.as-tab #app {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 /* ---- Botões ---- */
@@ -182,7 +272,10 @@ button {
   outline-offset: 2px;
 }
 
+/* Ação primária em pill, como o "Purchase Blue Pill Button" do Design.md;
+   os demais botões seguem o raio menor de --radius/8px (secundário/ghost). */
 .btn-primary {
+  border-radius: 999px;
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -367,14 +460,43 @@ button {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+/* Mesmo código de cores usado na borda pintada nos cards do OLX (ver content.ts). */
+.item.done {
+  border-left: 4px solid #16a34a;
+}
+
+.item.pending {
+  border-left: 4px solid #6b7280;
+}
+
+/* mesmas cores do selo na OLX (card-marking.ts): texto branco >= 4.5:1 */
+.item .badge.score {
+  background: #15803d;
+  color: #fff;
+}
+
+.item .badge.score[data-tier="mid"] {
+  background: #b45309;
+}
+
+.item .badge.score[data-tier="low"] {
+  background: #b91c1c;
+}
+
+.item {
+  cursor: pointer;
+}
+
 .item .pick {
   flex: 0 0 auto;
-  padding-top: 2px;
+  margin: -12px 0 -12px -12px;
+  padding: 12px 6px 12px 12px;
 }
 
 .item .pick input {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
 }
@@ -477,4 +599,409 @@ button {
 #pageInfo {
   font-size: 12.5px;
   color: var(--muted);
+}
+
+/* Indicador contínuo durante coleta e análise. */
+#status.is-loading::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: status-spin 0.8s linear infinite;
+}
+#status.has-error {
+  color: #9f1239;
+  background: #fff1f2;
+  border-radius: 6px;
+  padding: 10px;
+}
+@keyframes status-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #status.is-loading::before { animation: none; }
+}
+
+/* ================================================================
+ *  Modo Iniciante / alternância de modo / tooltips
+ * ================================================================ */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: view-in 0.18s ease-out;
+}
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mode-btn {
+  flex: 1;
+  appearance: none;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mode-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mode-btn:focus-visible,
+.choice:focus-visible,
+.link-btn:focus-visible,
+.tip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  text-align: left;
+  border: 2px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.choice:hover {
+  border-color: var(--muted);
+}
+
+.choice[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice-ico {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.choice-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.choice-txt strong {
+  font-size: 14px;
+}
+
+.choice-txt span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.link-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.options .is-disabled {
+  opacity: 0.5;
+}
+
+.count-line:empty {
+  display: none;
+}
+
+.count-line {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 1.5em;
+}
+
+/* motivo de o "Começar análise" estar desabilitado */
+.start-hint {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--warn-fg);
+}
+
+.btn-lg {
+  padding: 11px 16px;
+  font-size: 15px;
+}
+
+.b-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--accent-soft);
+}
+
+.b-status.is-ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.b-status.is-error {
+  background: var(--err-bg);
+  color: var(--err-fg);
+}
+
+#openResultsBtn {
+  margin-top: 10px;
+}
+
+.spinner {
+  display: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.b-status.is-busy .spinner {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Tooltip (?) ---- */
+.tip-row {
+  position: relative;
+}
+
+.tip {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: help;
+}
+
+.tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 10;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.tip:hover::after,
+.tip:focus-visible::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view, .spinner { animation: none; }
+}
+
+.b-status.is-cancel {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+#cancelBtn {
+  margin-top: 10px;
+}
+
+/* botões da aba "Analisar página" juntos, quebrando linha em vez de empilhar */
+.actions-wrap {
+  flex-wrap: wrap;
+}
+
+.actions-wrap .btn {
+  flex: 1 1 calc(50% - 4px);
+  white-space: nowrap;
+}
+
+/* ---- Toast de análise pendente + diálogo de confirmação ---- */
+.toast {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--warn-fg);
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  animation: view-in 0.18s ease-out;
+}
+
+.toast:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dialog {
+  max-width: 360px;
+  padding: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.dialog p {
+  margin: 0 0 14px;
+  font-size: 13px;
+}
+
+.dialog-btns {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- Tutorial guiado (tour) ---- */
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.tour-highlight {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(15, 17, 21, 0.65);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: absolute;
+  z-index: 2001;
+  width: min(300px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: top 0.2s ease, left 0.2s ease;
+}
+
+.tour-step-label {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+
+.tour-card h3 {
+  margin: 0 0 6px;
+  font-size: 14.5px;
+}
+
+.tour-card p#tourText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tour-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.tour-actions-right .btn {
+  width: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-highlight, .tour-card { transition: none; }
 }

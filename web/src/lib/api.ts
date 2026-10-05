@@ -1,39 +1,38 @@
-// Camada de API única. Nada no painel fala com o proxy sem passar por aqui.
-//
-// Proxy local (proxy/server.mjs):
-//   GET    /health  -> { ok, hasKey, model, port, dbPath }
-//   POST   /analyze -> { sections:[...] } => { ok, categorias, raw, usage }
-//   GET    /db      -> { ok, db: { [id]: DbRecord } }
-//   POST   /db      -> { id, record } | { records:[...] } | { db:{...} }  (merge por id)
-//   DELETE /db      -> zera o db
+// Camada de API única. Nada no painel fala com o background da extensão sem
+// passar por aqui. O painel roda como página da própria extensão
+// (chrome-extension://.../panel/index.html), então tudo é chrome.runtime.sendMessage
+// pro service worker em vez de fetch HTTP — sem proxy, sem servidor local.
 
-import type { Db, DbRecord, HealthResponse } from "@/types";
+import type {
+  AiConfig,
+  AiProviderInput,
+  CarMetric,
+  CompareRankingItem,
+  Db,
+  DbRecord,
+} from "@/types";
 
-const DEFAULT_BASE = "http://localhost:8787";
-const LS_KEY = "olx.proxyUrl";
-
-export function getProxyUrl(): string {
-  try {
-    return localStorage.getItem(LS_KEY)?.trim() || DEFAULT_BASE;
-  } catch {
-    return DEFAULT_BASE;
-  }
-}
-
-export function setProxyUrl(url: string): void {
-  try {
-    const v = url.trim().replace(/\/+$/, "");
-    if (v) localStorage.setItem(LS_KEY, v);
-    else localStorage.removeItem(LS_KEY);
-  } catch {
-    /* ignora storage indisponível */
-  }
+/** Resumo de um carro mandado em /compare e /metrics — não reenvia o registro inteiro. */
+export interface CompareCarInput {
+  id: string;
+  titulo?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  versao?: string | null;
+  ano?: number | null;
+  motor?: string | null;
+  combustivel?: string | null;
+  cambio?: string | null;
+  carroceria?: string | null;
+  km?: number | null;
+  preco?: number | null;
+  score?: number | null;
 }
 
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly kind: "offline" | "http" | "payload",
+    readonly kind: "offline" | "http" | "payload" | "timeout",
     readonly status?: number,
   ) {
     super(message);
@@ -41,66 +40,69 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = getProxyUrl();
-  let res: Response;
+async function send<T extends Record<string, unknown>>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
+  let response: (T & { ok: boolean; error?: string }) | undefined;
   try {
-    res = await fetch(base + path, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    });
+    response = (await chrome.runtime.sendMessage({ action, ...extra })) as (T & { ok: boolean; error?: string }) | undefined;
   } catch {
-    throw new ApiError(`Proxy offline em ${base}`, "offline");
+    throw new ApiError("A comunicação com a extensão foi interrompida. Recarregue o painel e tente novamente.", "offline");
   }
-  const text = await res.text();
-  let body: unknown = null;
-  if (text) {
-    try {
-      body = JSON.parse(text);
-    } catch {
-      throw new ApiError("Resposta do proxy não é JSON", "payload", res.status);
-    }
+  if (!response) {
+    throw new ApiError("A extensão não respondeu. Recarregue o painel e tente novamente.", "offline");
   }
-  if (!res.ok) {
-    const msg =
-      (body as { error?: string } | null)?.error ?? `HTTP ${res.status} em ${path}`;
-    throw new ApiError(msg, "http", res.status);
+  if (!response.ok) {
+    throw new ApiError(response.error ?? "Falha desconhecida", "http");
   }
-  return body as T;
+  return response;
 }
 
 export const api = {
-  async health(): Promise<HealthResponse> {
-    return request<HealthResponse>("/health");
+  async getConfig(): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("getAiConfig");
+    return r.config;
+  },
+
+  /** Define qual provedor cadastrado as análises usam. */
+  async setActiveProvider(providerId: string): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("setAiProvider", { providerId });
+    return r.config;
+  },
+
+  /** Cria (sem `id`) ou atualiza um provedor. Chave vazia mantém a atual. */
+  async saveProvider(provider: AiProviderInput): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("saveAiProvider", { provider });
+    return r.config;
+  },
+
+  async removeProvider(providerId: string): Promise<AiConfig> {
+    const r = await send<{ config: AiConfig }>("removeAiProvider", { providerId });
+    return r.config;
   },
 
   async getDb(): Promise<Db> {
-    const r = await request<{ ok: boolean; db: Db }>("/db");
+    const r = await send<{ db: Db }>("getDb");
     return r.db ?? {};
   },
 
-  /** Merge por id no db.json. */
+  /** Merge por id no armazenamento da extensão. */
   async mergeRecord(record: Partial<DbRecord> & { id: string }): Promise<Db> {
-    const r = await request<{ ok: boolean; db: Db }>("/db", {
-      method: "POST",
-      body: JSON.stringify({ id: record.id, record }),
-    });
+    const r = await send<{ db: Db }>("importDb", { db: { [record.id]: record } });
     return r.db ?? {};
   },
 
   async removeRecord(id: string): Promise<Db> {
-    // O proxy não tem DELETE por id; lemos, removemos e regravamos o mapa inteiro.
-    const db = await this.getDb();
-    delete db[id];
-    const r = await request<{ ok: boolean; db: Db }>("/db", {
-      method: "POST",
-      body: JSON.stringify({ db }),
-    });
+    const r = await send<{ db: Db }>("removeRecord", { id });
     return r.db ?? {};
   },
 
   async clearDb(): Promise<void> {
-    await request<{ ok: boolean }>("/db", { method: "DELETE" });
+    await send("clearDb");
+  },
+
+  /** Importa um db.json exportado anteriormente (merge por id). */
+  async importDb(db: Db): Promise<Db> {
+    const r = await send<{ db: Db }>("importDb", { db });
+    return r.db ?? {};
   },
 
   /** Reanálise da IA para uma ou mais seções. Devolve categorias[] alinhadas por index. */
@@ -110,9 +112,24 @@ export const api = {
     raw: string | null;
     usage: unknown;
   }> {
-    return request("/analyze", {
-      method: "POST",
-      body: JSON.stringify({ sections }),
-    });
+    return send("aiAnalyze", { sections });
+  },
+
+  /** "Comparar com IA": ranking do melhor pro pior, com uma frase de justificativa cada. */
+  async compareCars(cars: CompareCarInput[]): Promise<{
+    ok: boolean;
+    ranking: CompareRankingItem[] | null;
+    raw: string | null;
+  }> {
+    return send("aiCompare", { cars });
+  },
+
+  /** "Exibir métricas": consumo álcool/gasolina, cv e peso estimados pela IA (conhecimento geral do modelo). */
+  async carMetrics(cars: CompareCarInput[]): Promise<{
+    ok: boolean;
+    metrics: CarMetric[] | null;
+    raw: string | null;
+  }> {
+    return send("aiMetrics", { cars });
   },
 };

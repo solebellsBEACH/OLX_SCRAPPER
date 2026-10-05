@@ -1,0 +1,67 @@
+import { beginOperation, throwIfCancelled } from "../cancel";
+import { categorizeInChunks } from "../ai-categorize";
+import { dbAll, dbUpsertMany } from "../db";
+import { markCardsOnPage } from "../indicators";
+import { itemToRecord, mergeItems } from "../items";
+import { clearPageLoading, setPageLoading } from "../loading";
+import { progress } from "../progress";
+import { backfillScores } from "../scores";
+import { getActiveOlxTab, injectContent } from "../tabs";
+import type { AnalyzeResult, Card, DbRecord } from "../types";
+import { isCarro } from "../vehicle-filter";
+
+export async function analyze(): Promise<AnalyzeResult> {
+  beginOperation();
+  const tab = await getActiveOlxTab({ requireCarSearch: true });
+  await injectContent(tab.id);
+  await setPageLoading(tab.id, "Analisando anúncios...");
+
+  try {
+    const extracted = (await chrome.tabs.sendMessage(tab.id, { action: "extractSections" })) as
+      | { ok: boolean; count: number; cards: Card[] }
+      | undefined;
+    const cards = extracted?.cards ?? [];
+    const db = await dbAll();
+
+    const { categorias, error } = await categorizeInChunks(cards);
+    const raw = null;
+    throwIfCancelled();
+
+    const merged = mergeItems(cards, categorias, db);
+    const items = merged.filter((it) => isCarro(it.categoria));
+    const nonCar = merged.length - items.length;
+
+    await backfillScores(items, db);
+    await markCardsOnPage(tab.id, items);
+
+    // Grava um rascunho raso de cada carro NOVO no db.json — sem isso, o que o
+    // "Analisar página" categoriza só existe na memória da janela da extensão e
+    // some ao fechá-la, sem chance de rodar o "Analisar selecionados" depois.
+    // Nunca sobrescreve quem já está no DB (raso ou completo).
+    let savedToDb = 0;
+    const newRecords = items
+      .filter((it) => typeof it.id === "string" && !(it.id in db))
+      .map(itemToRecord)
+      .filter((r): r is DbRecord => r !== null);
+    if (newRecords.length > 0) {
+      try {
+        savedToDb = await dbUpsertMany(newRecords);
+        for (const r of newRecords) db[r.id] = r;
+      } catch (err) {
+        progress(`⚠️ Não deu pra salvar o rascunho na lista: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return {
+      count: items.length,
+      items,
+      categorias,
+      raw,
+      nonCar,
+      savedToDb,
+      aiError: error ?? (categorias ? undefined : "IA não retornou JSON válido (veja 'raw')."),
+    };
+  } finally {
+    await clearPageLoading(tab.id);
+  }
+}

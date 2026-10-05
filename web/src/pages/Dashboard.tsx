@@ -1,45 +1,283 @@
 import { useMemo } from "react";
+import { LearnNote, LearnPage } from "@/components/learning/Learn";
 import { Link } from "react-router-dom";
+import type { AdRow } from "@/types";
 import { useDb } from "@/lib/useDb";
-import { computeStats } from "@/lib/rows";
-import { formatBRL, formatNumber } from "@/lib/format";
+import { computeStats, relevantAlerts } from "@/lib/rows";
+import { isGoodDeal } from "@/lib/colors";
+import { formatBRL, formatKm, formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/Layout";
-import { ProxyStatus } from "@/components/ProxyStatus";
+import { Badge } from "@/components/ui/badge";
 import { Empty, ErrorBox, Loading } from "@/components/States";
+import { MarketStatusBadge, OpportunityBadge, marketPhrase } from "@/components/VehicleAnalysisBadges";
+import { cn } from "@/lib/cn";
+
+const BEST_OPPORTUNITIES_LIMIT = 8;
+const BELOW_MARKET_LIMIT = 5;
+const TO_VERIFY_LIMIT = 6;
+/** abaixo disso (%) já é considerado "meaningfully" abaixo do mercado pra entrar na seção. */
+const BELOW_MARKET_THRESHOLD = -10;
+
+function titleFor(r: AdRow): string {
+  return [r.marca, r.modelo].filter(Boolean).join(" ") || r.modeloVersao;
+}
+
+/**
+ * Alguns registros na base não são veículos de fato (anúncios mal categorizados que caem
+ * no grupo "?|?|?" e acabam comparados entre si, gerando diffs de preço absurdos tipo
+ * -99%). Sem marca nem modelo reconhecidos pela IA, não dá pra tratar como carro nas
+ * seções de destaque — evita, por exemplo, mostrar um "tênis" como oportunidade de -99%.
+ */
+function isPlausibleVehicle(r: AdRow): boolean {
+  return r.marca != null || r.modelo != null;
+}
+
+function pointsToVerifyText(n: number): string {
+  if (n === 0) return "Sem pontos para verificar";
+  return n === 1 ? "1 ponto para verificar" : `${n} pontos para verificar`;
+}
+
+function pct(n: number, total: number): number | null {
+  return total > 0 ? Math.round((n / total) * 100) : null;
+}
 
 export function Dashboard() {
   const { rows, status, error, refetch } = useDb();
   const stats = useMemo(() => computeStats(rows), [rows]);
 
+  // mesmo critério do selo "Bom negócio" da Listagem (isGoodDeal), pra os números baterem
+  const goodOpportunityCount = useMemo(
+    () => rows.filter((r) => isPlausibleVehicle(r) && isGoodDeal(r.analysis)).length,
+    [rows],
+  );
+
+  const marketAvailableCount = useMemo(
+    () => rows.filter((r) => isPlausibleVehicle(r) && r.analysis.priceStatus != null).length,
+    [rows],
+  );
+
+  const toVerifyCount = useMemo(
+    () => rows.filter((r) => isPlausibleVehicle(r) && relevantAlerts(r.analysis).length > 0).length,
+    [rows],
+  );
+
+  // "Bom negócio" da Listagem (preço abaixo do mercado, sem preço suspeito), sem múltiplos
+  // alertas relevantes acumulados (não empurra um carro com 3 pontos de atenção só porque
+  // o preço parece ótimo), ordenado pela nota de Oportunidade.
+  const bestOpportunities = useMemo(
+    () =>
+      rows
+        .filter(
+          (r) =>
+            isPlausibleVehicle(r) &&
+            isGoodDeal(r.analysis) &&
+            relevantAlerts(r.analysis).length <= 1,
+        )
+        .sort((a, b) => (b.analysis.opportunityScore ?? 0) - (a.analysis.opportunityScore ?? 0))
+        .slice(0, BEST_OPPORTUNITIES_LIMIT),
+    [rows],
+  );
+
+  const belowMarket = useMemo(
+    () =>
+      rows
+        .filter(
+          (r) =>
+            isPlausibleVehicle(r) &&
+            r.analysis.priceDifferencePercent != null &&
+            r.analysis.priceDifferencePercent <= BELOW_MARKET_THRESHOLD,
+        )
+        .sort((a, b) => (a.analysis.priceDifferencePercent ?? 0) - (b.analysis.priceDifferencePercent ?? 0))
+        .slice(0, BELOW_MARKET_LIMIT),
+    [rows],
+  );
+
+  const toVerify = useMemo(
+    () =>
+      rows
+        .filter((r) => isPlausibleVehicle(r) && relevantAlerts(r.analysis).length > 0)
+        .sort((a, b) => relevantAlerts(b.analysis).length - relevantAlerts(a.analysis).length)
+        .slice(0, TO_VERIFY_LIMIT),
+    [rows],
+  );
+
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorBox message={error ?? "Erro"} onRetry={refetch} />;
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title="Dashboard">
-        <ProxyStatus />
-      </PageHeader>
+    <div className="flex flex-col gap-8">
+      <PageHeader title="Dashboard" />
+
+      <LearnPage
+        title="Dashboard"
+        what="Visão geral da sua base: resume todos os anúncios já analisados e destaca onde estão as melhores chances e o que precisa de cuidado."
+        can={[
+          "Ler os números-resumo no topo para saber o tamanho e o preço típico da base.",
+          "Clicar em qualquer carro das listas para abrir a análise completa dele.",
+          "Ir à Listagem para filtrar, ordenar e comparar todos os anúncios.",
+        ]}
+        read="Os dados vêm da extensão: cada anúncio analisado é gravado na base e comparado com outros da mesma marca, modelo e ano. Nada aqui é recomendação de compra — é apoio para decidir."
+      />
 
       {status === "empty" ? (
         <Empty />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-0 border border-border bg-surface sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label="Anúncios" value={formatNumber(stats.total)} />
-            <Stat label="Com preço" value={formatNumber(stats.withPrice)} />
-            <Stat label="Preço médio" value={formatBRL(stats.avgPrice)} />
-            <Stat label="Preço mediano" value={formatBRL(stats.medianPrice)} />
-            <Stat label="Com queda de preço" value={formatNumber(stats.priceDrops)} />
-            <Stat label="Oportunidades" value={formatNumber(stats.opportunities)} accent />
-          </div>
+          {/* 1. Resumo */}
+          <section className="flex flex-col gap-2">
+            <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <SummaryCard label="Veículos analisados" value={formatNumber(stats.total)} hint="na base atual" />
+              <SummaryCard
+                label="Preço típico"
+                value={formatBRL(stats.medianPrice)}
+                hint={stats.avgPrice != null ? `Preço mediano · média ${formatBRL(stats.avgPrice)}` : "Preço mediano"}
+              />
+              <SummaryCard
+                label="Bons negócios"
+                value={`${formatNumber(goodOpportunityCount)}`}
+                hint={
+                  pct(goodOpportunityCount, stats.total) != null
+                    ? `${pct(goodOpportunityCount, stats.total)}% dos anúncios analisados`
+                    : undefined
+                }
+                accent
+              />
+              <SummaryCard
+                label="Pontos para verificar"
+                value={formatNumber(toVerifyCount)}
+                hint="dados que merecem verificação"
+              />
+              <SummaryCard
+                label="Comparação de mercado"
+                value={pct(marketAvailableCount, stats.total) != null ? `${pct(marketAvailableCount, stats.total)}%` : "—"}
+                hint="dos anúncios com comparação disponível"
+              />
+            </div>
+            <LearnNote title="O que cada número significa">
+              <p><strong>Veículos analisados:</strong> total de anúncios na base.</p>
+              <p><strong>Preço típico:</strong> a <em>mediana</em> (o valor do meio), que sofre menos com anúncios muito caros ou muito baratos do que a média.</p>
+              <p><strong>Bons negócios:</strong> anúncios com o selo verde "Bom negócio" da Listagem — preço pelo menos 5% abaixo da média de similares. Preço 25% ou mais abaixo não entra: aparece como "Verificar preço".</p>
+              <p><strong>Pontos para verificar:</strong> anúncios com algum alerta sobre o carro (preço fora do padrão, km suspeita etc.). Ter poucos similares para comparar não conta como alerta. Não é acusação, só um convite a checar.</p>
+              <p><strong>Comparação de mercado:</strong> % de anúncios que têm ao menos 2 outros da mesma marca, modelo e ano para servir de referência.</p>
+            </LearnNote>
+            <p className="text-xs text-subtle">
+              Alguns anúncios possuem poucos veículos semelhantes para comparação. Nesses casos, a análise de preço é
+              limitada.
+            </p>
+          </section>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <DistTable title="Distribuição por marca" rows={stats.byMarca} total={stats.total} />
-            <DistTable title="Distribuição por ano" rows={stats.byAno} total={stats.total} />
-          </div>
+          {/* 2. Melhores oportunidades */}
+          <Section
+            title="Melhores negócios"
+            caption="Veículos que se destacam pelos dados disponíveis — não é uma recomendação de compra."
+          >
+            <LearnNote className="mb-3" title="Como esta lista é montada">
+              <p>Entram os carros com selo <strong>"Bom negócio"</strong> na Listagem e <strong>no máximo 1 ponto de atenção</strong> — assim um preço ótimo não esconde vários problemas. Ordenados pela nota de Oportunidade (até 8 carros). Se um "Bom negócio" não aparece aqui, é porque tem 2 ou mais alertas.</p>
+            </LearnNote>
+            {bestOpportunities.length === 0 ? (
+              <EmptyNote text="Nenhum anúncio se destacou nesse critério ainda." />
+            ) : (
+              <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {bestOpportunities.map((r) => (
+                  <VehicleMiniCard key={r.id} row={r}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <MarketStatusBadge analysis={r.analysis} />
+                      <OpportunityBadge analysis={r.analysis} />
+                    </div>
+                    <p className="text-xs text-subtle">
+                      {pointsToVerifyText(relevantAlerts(r.analysis).length)}
+                    </p>
+                  </VehicleMiniCard>
+                ))}
+              </div>
+            )}
+          </Section>
+
+          {/* 3. Abaixo do preço esperado */}
+          <Section title="Abaixo do preço esperado" caption="Anúncios com preço bem abaixo da média de similares.">
+            <LearnNote className="mb-3" title="Como esta lista é montada">
+              <p>Carros com preço <strong>10% ou mais abaixo</strong> da média dos similares (mesma marca, modelo e ano). Se estiver <strong>25% ou mais</strong> abaixo, aparece como "muito abaixo do padrão — verificar": preço bom demais pode indicar problema, golpe ou erro do anúncio.</p>
+            </LearnNote>
+            {belowMarket.length === 0 ? (
+              <EmptyNote text="Ainda não há veículos suficientes para essa comparação." />
+            ) : (
+              <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {belowMarket.map((r) => {
+                  const extreme = r.analysis.alerts.some((a) => a.type === "price_far_below_market");
+                  return (
+                    <VehicleMiniCard key={r.id} row={r}>
+                      {extreme ? (
+                        <p className="text-xs font-semibold text-warn">Preço muito abaixo do padrão — verificar</p>
+                      ) : (
+                        <p className="text-xs font-semibold text-ok">{marketPhrase(r.analysis)} do mercado</p>
+                      )}
+                      {r.analysis.marketAveragePrice != null && (
+                        <p className="text-xs text-subtle">
+                          Média dos similares: {formatBRL(r.analysis.marketAveragePrice)}
+                        </p>
+                      )}
+                    </VehicleMiniCard>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+
+          {/* 4. Pontos para verificar */}
+          <Section title="Pontos para verificar" caption="Dados que merecem uma checagem antes de decidir — não são acusações.">
+            <LearnNote className="mb-3" title="O que são estes pontos">
+              <p>Alertas gerados automaticamente: preço muito fora do mercado, quilometragem incomum para a idade (possível odômetro adulterado). Avisos <strong>informativos</strong> sobre a base (ex.: poucos anúncios para comparar) não entram aqui. Vale conferir com o vendedor.</p>
+            </LearnNote>
+            {toVerify.length === 0 ? (
+              <EmptyNote text="Nenhum ponto relevante para verificar no momento." />
+            ) : (
+              <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {toVerify.map((r) => {
+                  const relevant = relevantAlerts(r.analysis);
+                  const [first, ...rest] = relevant;
+                  return (
+                    <VehicleMiniCard key={r.id} row={r}>
+                      {first && (
+                        <div className="flex flex-col gap-1">
+                          <Badge tone={first.severity === "danger" ? "danger" : "warn"} className="w-fit">
+                            {first.title}
+                          </Badge>
+                          <p className="text-xs text-muted">{first.description}</p>
+                        </div>
+                      )}
+                      {rest.length > 0 && (
+                        <p className="text-xs text-subtle">
+                          +{rest.length} outro{rest.length > 1 ? "s" : ""} ponto{rest.length > 1 ? "s" : ""}
+                        </p>
+                      )}
+                    </VehicleMiniCard>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+
+          {/* 5. Explorar o mercado (analítico, demotido) */}
+          <Section title="Explorar o mercado" caption="Visão agregada da base — informação secundária pra apoiar a decisão.">
+            <LearnNote className="mb-3" title="Visão agregada">
+              <p>Mostra como a base se distribui por marca e por ano, e quantos anúncios tiveram <strong>queda de preço</strong> (preço atual menor que o anterior). Serve para entender de onde vêm os dados, não para decidir sozinho.</p>
+            </LearnNote>
+            <div className="mb-4 flex flex-wrap gap-4 text-xs text-muted">
+              <span>
+                Anúncios com preço: <strong className="text-fg tnum">{formatNumber(stats.withPrice)}</strong>
+              </span>
+              <span>
+                Com queda de preço: <strong className="text-fg tnum">{formatNumber(stats.priceDrops)}</strong>
+              </span>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <DistTable title="Anúncios por marca" rows={stats.byMarca} total={stats.total} />
+              <DistTable title="Anúncios por ano" rows={stats.byAno} total={stats.total} />
+            </div>
+          </Section>
 
           <p className="text-sm text-muted">
-            <Link to="/listagem" className="text-accent hover:underline">
+            <Link to="/listagem" className="text-accent underline underline-offset-2 hover:text-fg">
               Ver todos os anúncios na Listagem →
             </Link>
           </p>
@@ -49,12 +287,68 @@ export function Dashboard() {
   );
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function SummaryCard({
+  label,
+  value,
+  hint,
+  accent,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: boolean;
+}) {
   return (
-    <div className="border-b border-r border-border p-4 last:border-r-0">
+    <div className="border border-border bg-surface p-4">
       <p className="text-xs font-semibold text-muted">{label}</p>
-      <p className={`mt-1 text-lg tnum ${accent ? "text-accent" : ""}`}>{value}</p>
+      <p className={cn("tnum mt-1 text-lg font-semibold tracking-tight", accent && "text-accent")}>
+        {value}
+      </p>
+      {hint && <p className="mt-0.5 text-xs text-subtle">{hint}</p>}
     </div>
+  );
+}
+
+function Section({
+  title,
+  caption,
+  children,
+}: {
+  title: string;
+  caption?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="border border-border bg-surface">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-sm font-semibold">{title}</p>
+        {caption && <p className="text-xs text-subtle">{caption}</p>}
+      </div>
+      <div className="p-3">{children}</div>
+    </section>
+  );
+}
+
+function EmptyNote({ text }: { text: string }) {
+  return <p className="py-4 text-center text-sm text-subtle">{text}</p>;
+}
+
+function VehicleMiniCard({ row, children }: { row: AdRow; children: React.ReactNode }) {
+  return (
+    <Link
+      to={`/anuncio/${row.id}`}
+      className="lift flex flex-col gap-1.5 border border-border bg-surface p-3 hover:border-accent"
+    >
+      <p className="truncate text-sm font-semibold" title={titleFor(row)}>
+        {titleFor(row)}
+        {row.ano ? ` ${row.ano}` : ""}
+      </p>
+      <div>
+        <p className="tnum text-sm font-semibold">{formatBRL(row.price)}</p>
+        <p className="tnum text-xs text-muted">{formatKm(row.km)}</p>
+      </div>
+      {children}
+    </Link>
   );
 }
 

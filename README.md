@@ -1,8 +1,30 @@
 # OLX Workspace
 
+> 🇬🇧 **English summary** — the rest of this README is in Portuguese (the target users are
+> Brazilian car buyers), but here's what this project is:
+>
+> **OLX Workspace** is a Chrome extension (Manifest V3, TypeScript, no backend) that scrapes
+> car listings from [OLX](https://www.olx.com.br) (Brazil's largest classifieds site), sends
+> them to an LLM of your choice (OpenAI, DeepSeek, Gemini, Groq, Mistral, xAI, OpenRouter, or a
+> custom endpoint — your API key never leaves `chrome.storage.local`) to categorize each
+> listing (brand/model/year/engine/etc.) and filter out anything that isn't a passenger car,
+> then persists everything locally and surfaces it in a full **React + Vite dashboard** shipped
+> as an extension page: market-price comparison, outlier-aware averages, a side-by-side
+> comparator, and a guided "beginner mode" for non-technical users. Everything — scraping,
+> AI calls, storage, UI — runs client-side inside the extension; there's no server component.
+>
+> - **Stack:** TypeScript (strict) · Webpack (extension) · Vite + React + Tailwind + TanStack
+>   Table (panel) · Vitest (unit tests) · Manifest V3 service worker architecture.
+> - **Run it:** `./setup.sh` builds both the extension and the panel into `extension/build/`,
+>   then load that folder as an unpacked extension in `chrome://extensions`. See
+>   ["Como rodar"](#como-rodar) below for details, or [`production.sh`](production.sh) to
+>   package a Chrome Web Store–ready `.zip`.
+> - **License:** [MIT](LICENSE).
+
 > **Status atual:** funcional em ambiente de desenvolvimento (carregado como extensão sem
 > compactação). Listagem + categorização por IA + análise da página do anúncio + persistência
-> em `db.json` estão implementados e testados manualmente.
+> estão implementados e testados manualmente. **Tudo roda dentro da extensão** — sem proxy
+> Node nem dev server separado; ver o histórico de atualizações mais recente abaixo.
 
 Este arquivo é a **fonte da verdade** sobre o projeto. **Toda alteração relevante deve ser
 registrada aqui** (seção [Histórico de atualizações](#histórico-de-atualizações)) explicando o
@@ -13,19 +35,22 @@ que mudou e por quê.
 ## O que é
 
 **OLX Workspace** é uma **extensão do Chrome (Manifest V3, TypeScript)** para garimpar anúncios
-de **carros** no OLX com apoio de IA (**DeepSeek**). Ela:
+de **carros** no OLX com apoio de IA (vários provedores — OpenAI, DeepSeek, Gemini, Groq, Mistral, xAI, OpenRouter ou endpoint próprio —, cadastrados em Config no painel). Ela:
 
 1. Lê os cards de uma página de listagem do OLX (`https://www.olx.com.br/...`) — ou **varre
    várias páginas** da paginação de uma vez ("Varrer páginas").
-2. Manda esses dados para a **DeepSeek** (via um **proxy local** que guarda a chave) e recebe
-   cada anúncio **categorizado**: tipo, marca, modelo, versão, ano, motor, combustível, câmbio,
-   portas, carroceria. **Só carros de passeio ficam** — moto, caminhão, ônibus, van, náutica,
-   etc. são descartados pelo campo `tipo` (não vão para a lista nem para o `db.json`).
+2. Manda esses dados para o **provedor de IA ativo** (DeepSeek ou OpenAI, chamado **direto do
+   service worker da extensão** — sem servidor intermediário) e recebe cada anúncio
+   **categorizado**: tipo, marca, modelo, versão, ano, motor, combustível, câmbio, portas,
+   carroceria. **Só carros de passeio ficam** — moto, caminhão, ônibus, van, náutica, etc. são
+   descartados pelo campo `tipo` (não vão para a lista nem para a base).
 3. Mostra tudo numa **janela separada** da extensão, em **lista paginada (5 por página)**, com
    **seleção por checkbox**.
 4. Para os itens selecionados, **navega a própria aba do OLX** até a página de cada anúncio,
-   **extrai os dados/HTML** da página de detalhe e **grava no arquivo `db.json`** (na raiz do
-   projeto), indexado pelo id do anúncio.
+   **extrai os dados/HTML** da página de detalhe e **grava na base da extensão**
+   (`chrome.storage.local`), indexado pelo id do anúncio.
+5. Um **painel completo** (React), aberto como página da própria extensão a partir do botão
+   "🗂️ Abrir painel" no popup, mostra dashboard, listagem, comparador e configuração da IA.
 
 Todo o log de diagnóstico sai no **console da janela da extensão** (não no console do OLX).
 
@@ -34,56 +59,58 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
 ## Arquitetura
 
 ```
-┌─────────────────────┐        ┌──────────────────────┐        ┌───────────────────┐
-│  Janela da extensão │  msg   │  Service worker      │  HTTP  │  Proxy local      │
-│  (popup.html?tab=1) │ ─────▶ │  (background.ts)     │ ─────▶ │  proxy/server.mjs │
-│  lista + seleção    │ ◀───── │  orquestra tudo      │ ◀───── │  Node, sem deps   │
-└─────────────────────┘        └──────────┬───────────┘        └─────────┬─────────┘
-                                          │ scripting.executeScript      │
-                                          ▼                              ▼
-                                 ┌──────────────────┐          ┌───────────────────┐
-                                 │  content.ts      │          │  DeepSeek API     │
-                                 │  (aba do OLX)    │          │  db.json (raiz)   │
-                                 │  só extrai dados │          └───────────────────┘
-                                 └──────────────────┘
+┌─────────────────────┐        ┌───────────────────────┐        ┌───────────────────┐
+│  Janela da extensão │  msg   │  Service worker       │  fetch │  DeepSeek/OpenAI  │
+│  (popup.html?tab=1) │ ─────▶ │  (background.ts)      │ ─────▶ │  API direta       │
+│  lista + seleção    │ ◀───── │  orquestra tudo       │ ◀───── │                   │
+└─────────────────────┘        └──────────┬────────────┘        └───────────────────┘
+        │ "Abrir painel"                  │ scripting.executeScript
+        ▼                                 ▼
+┌─────────────────────┐        ┌──────────────────────┐
+│  panel/index.html   │  msg   │  content.ts          │
+│  (React, chrome-    │ ─────▶ │  (aba do OLX)        │
+│  extension://...)   │ ◀───── │  só extrai dados     │
+└─────────────────────┘        └──────────────────────┘
+
+chrome.storage.local guarda tudo: a base de anúncios (`olx.db`) e a config/chaves de IA
+(`olx.aiConfig`). Sem servidor local, sem arquivo em disco além do bundle da extensão.
 ```
 
-- **`extension/`** — a extensão. Bundle gerado por webpack em `extension/build/` (é essa pasta
-  que se carrega no Chrome).
-  - `src/manifest.json` — MV3. Permissões: `activeTab`, `scripting`. Hosts: `https://*.olx.com.br/*`
-    (os anúncios ficam em subdomínios regionais, ex. `es.olx.com.br`) e `http://localhost:8787/*`
-    (o proxy). Sem `default_popup` — clicar no ícone abre uma **janela** (`chrome.windows.create`).
-  - `src/background.ts` — service worker. Abre a janela, orquestra as ações, fala com o proxy,
-    lê/grava o `db.json` (via proxy), navega a aba do OLX nas análises de detalhe.
-  - `src/content.ts` — injetado sob demanda na aba do OLX. **Não usa `console.*`**; só extrai:
-    - `extractSections()` — cards da listagem (título, preço, preço antigo, **km**, **cor**,
-      local, data, imagem, nº de fotos, `details[]`).
-    - `extractAdPage()` — página do anúncio (título, preço, descrição, `properties[]`, imagens,
-      `ld+json`, `htmlLength`). Tenta ler o estado interno do OLX (`initial-data` /
-      `__PRELOADED_STATE__`, `deepFindAd`) e cai para `<h1>` / `meta` / JSON-LD.
-    - `scrollAutomatic()` — scroll suave até o fim (~3 s); progresso via mensagem.
-  - `src/popup.ts` — UI da janela: lista paginada, seleção, paginação, "Ver DB", e **todo o
-    log** (`console.table` etc.) no console desta janela.
+- **`extension/`** — a extensão. Bundle gerado por webpack (+ o painel, por Vite) em
+  `extension/build/` (é essa pasta que se carrega no Chrome).
+  - `src/manifest.json` — MV3. Permissões: `activeTab`, `scripting`, `storage`,
+    `unlimitedStorage`. Hosts: `https://*.olx.com.br/*` (os anúncios ficam em subdomínios
+    regionais, ex. `es.olx.com.br`), `https://api.deepseek.com/*` e `https://api.openai.com/*`.
+    Sem `default_popup` — clicar no ícone abre uma **janela** (`chrome.windows.create`).
+  - `src/background.ts`, `src/content.ts`, `src/popup.ts` — **entry points finos** do webpack
+    (só um `import "./<pasta>/index"`); a implementação de cada um vive numa pasta de mesmo nome
+    ao lado, dividida por responsabilidade (ver abaixo). Isso mantém os três bundles do
+    `webpack.config.js` (`background`, `content`, `popup`) intactos.
+  - `src/background/` — service worker. Abre a janela (`panel.ts`), orquestra as ações
+    (`actions/analyze.ts`, `actions/crawl-listing.ts`, `actions/analyze-selected.ts`,
+    `actions/load-pending.ts`, `actions/auto-scroll.ts`), chama a IA direto
+    (`ai-client.ts`, `ai-config.ts`, `ai-categorize.ts`), lê/grava a base em
+    `chrome.storage.local` (`store.ts`, `db.ts`), navega a aba do OLX (`tabs.ts`) e despacha as
+    mensagens do popup **e do painel** (`message-router.ts`).
+  - `src/content/` — injetado sob demanda na aba do OLX. **Não usa `console.*`**; só extrai:
+    - `listing-extractor.ts` (`extractSections()`) — cards da listagem (título, preço, preço
+      antigo, **km**, **cor**, local, data, imagem, nº de fotos, `details[]`).
+    - `ad-page-extractor.ts` (`extractAdPage()`) — página do anúncio (título, preço, descrição,
+      `properties[]`, imagens, `ld+json`, `htmlLength`). Tenta ler o estado interno do OLX
+      (`initial-data` / `__PRELOADED_STATE__`, `deepFindAd`) e cai para `<h1>` / `meta` / JSON-LD.
+    - `scroll.ts` (`scrollAutomatic()`) — scroll suave até o fim (~3 s); progresso via mensagem.
+    - `card-marking.ts` / `auto-mark.ts` — borda verde/amarela + score direto nos cards do OLX.
+  - `src/popup/` — UI da janela: `dom.ts` (refs dos elementos), `state.ts` (estado mutável
+    compartilhado), `render/` (lista paginada, badges, tabs), `actions/` (um módulo por botão,
+    incluindo `open-panel.ts` que abre o painel completo numa aba), e **todo o log**
+    (`logging.ts`, `console.table` etc.) no console desta janela.
   - `public/popup.html`, `styles/popup.css` — marcação e estilo (minimalistas).
-- **`proxy/`** — servidor Node (HTTP puro, **sem dependências**, Node ≥ 18.17).
-  - `server.mjs` — guarda a chave DeepSeek e expõe:
-    - `GET  /health` — status + `dbPath`.
-    - `POST /analyze` — recebe `{ sections: [...] }`, chama a DeepSeek em modo JSON e devolve
-      `{ ok, categorias, raw, usage }`.
-    - `GET  /db` — conteúdo de `db.json`.
-    - `POST /db` — `{ id, record }` | `{ records:[...] }` | `{ db:{...} }`; faz **merge por id**,
-      grava `db.json` (escrita atômica via `.tmp` + rename), devolve `{ ok, db }`.
-    - `DELETE /db` — zera `db.json`.
-    - `GET  /img?u=<url>` — baixa a imagem (`https://*.olx.com.br`) no servidor e
-      devolve os bytes. O painel usa isso porque `img.olx.com.br` costuma ser
-      barrado no navegador (adblock / proteção anti-rastreio / DNS).
-  - `.env` — `DEEPSEEK_API_KEY`, `DEEPSEEK_API_URL`, `DEEPSEEK_MODEL`, `PROXY_PORT`.
-    **Não versionado** (`.gitignore`). `.env.example` é o modelo.
-- **`db.json`** (raiz) — o "banco". Mapa `{ [idDoAnuncio]: registro }`. Cada registro tem
-  `id`, `url`, `detail` (dados da página), `categoria` (IA), `htmlLength`, `analyzedAt`,
-  `savedAt`. **Não versionado.**
-- **`setup.sh`** (raiz) — instala deps da extensão, faz o build e **abre 3 terminais**
-  (proxy, `webpack --watch`, painel com health-check). `--no-terminals` para modo headless.
+  - `build/panel/` — build do painel React (`web/`), gerado pelo Vite **direto nessa pasta**
+    (não versionado). Aberto via `chrome.runtime.getURL("panel/index.html")`.
+- **`web/`** — código-fonte do painel (Vite + React + TypeScript). Builda para
+  `extension/build/panel/`, não roda mais como dev server separado (ver "Como rodar").
+- **`setup.sh`** (raiz) — instala deps da extensão e do painel e faz o **build de tudo**, na
+  ordem certa (webpack antes do Vite, porque o webpack limpa `extension/build/`).
 
 ---
 
@@ -91,78 +118,83 @@ Todo o log de diagnóstico sai no **console da janela da extensão** (não no co
 
 Pré-requisitos: **Node ≥ 18.17** e **Google Chrome**.
 
+Não tem mais proxy nem dev server: **tudo roda dentro da extensão**. `./setup.sh` builda a
+extensão (webpack) e o painel (Vite) na ordem certa, direto em `extension/build/`.
+
 ### Rápido
 
 ```bash
 ./setup.sh
 ```
 
-Isso instala as deps da **extensão** e do **painel (`web/`)**, faz o build da extensão e abre
-3 terminais: **proxy** (`proxy/ npm start`), **webpack --watch** (`extension/ npm run dev`) e
-**painel Vite** (`web/ npm run dev`, em `http://localhost:5173`, depois de esperar o proxy).
-`./setup.sh --no-terminals` só instala/typecheck (headless/CI). Depois, no Chrome:
+Isso instala as deps da **extensão** e do **painel (`web/`)** e builda os dois, nessa ordem
+(o build do webpack limpa `extension/build/`, então o painel precisa ser buildado depois).
+Ao final:
 
 1. `chrome://extensions`
 2. Ativar **Modo do desenvolvedor**
 3. **Carregar sem compactação** → selecionar `extension/build/`
+4. No popup da extensão, clique em **🗂️ Abrir painel** e configure a chave de IA na aba
+   **IA** (DeepSeek ou OpenAI — fica salva em `chrome.storage.local`, dentro da extensão).
 
 ### Manual
 
 ```bash
-# 1. Proxy (deixe rodando num terminal)
-cd proxy
-cp .env.example .env        # e coloque sua DEEPSEEK_API_KEY
-npm start
-
-# 2. Extensão (noutro terminal)
+# 1. Extensão
 cd extension
 npm install
-npm run build               # ou: npm run dev  (webpack --watch)
+npm run build               # ou: npm run dev  (webpack --watch, pra iterar no background/content/popup)
+
+# 2. Painel — DEPOIS do build da extensão (webpack limpa extension/build/)
+cd web
+npm install
+npm run build                # gera extension/build/panel/
 ```
 
 Carregar `extension/build/` em `chrome://extensions` como acima.
 
-### Painel de análise (`web/`)
+> Iterando no painel: `cd web && npm run dev` sobe um dev server Vite comum
+> (`http://localhost:5173`) pra iterar na UI mais rápido, mas nesse modo `chrome.runtime` não
+> existe (não é uma página da extensão) — as chamadas à API falham. Pra testar de verdade,
+> rode `npm run build` e abra pelo popup.
 
-App **Vite + React + TypeScript** que roda ao lado do proxy e é o **painel de análise** do
-garimpo (a extensão continua sendo só o coletor). Lê tudo pelo proxy (`GET /db`,
-`POST /analyze`, `DELETE /db`, `GET /img?u=` para as fotos).
+### Painel completo (`web/`)
 
-```bash
-cd web
-npm install
-npm run dev          # http://localhost:5173  (proxy precisa estar de pé em :8787)
-```
+App **Vite + React + TypeScript** que builda para `extension/build/panel/` e roda como
+**página da própria extensão** (`chrome-extension://.../panel/index.html`, aberta pelo botão
+"🗂️ Abrir painel" no popup). Fala com o background via `chrome.runtime.sendMessage` — sem
+HTTP, sem proxy (`web/src/lib/api.ts`). Usa `HashRouter` (não `BrowserRouter`) porque uma
+página de extensão não tem servidor pra resolver rotas profundas no F5.
 
 Páginas: **Dashboard** (totais, distribuição por marca/ano, preço médio/mediano, quedas de
-preço, status do proxy), **Listagem** (tabela paginada com ordenação por coluna, filtros
+preço, status da IA), **Listagem** (tabela paginada com ordenação por coluna, filtros
 persistentes na querystring — marca, ano, faixa de preço/km, busca — e seleção múltipla),
 **Detalhe** (`/anuncio/:id`: galeria + dados da IA + properties + descrição, "Reanalisar" e
 "Remover do DB"), **Comparador** (`/comparador?ids=…`: 2 a 4 anúncios lado a lado, opcionais
-em matriz) e **DB / Config** (JSON cru, exportar CSV/JSON, limpar DB, endpoint do proxy
-configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`olx.proxyUrl`).
+em matriz), **Config** (provedores de IA — vários, com select de modelo e teste —, JSON cru, exportar CSV/JSON, **importar um `db.json` antigo**, limpar DB).
 
 ### Usar
 
 1. Clique no ícone da extensão → abre a **janela** do OLX Workspace.
 2. Deixe **uma aba do OLX** aberta numa página de listagem de carros — a URL precisa conter
-   `carros-vans-e-utilitarios` (categoria "Autos e peças › Carros, vans e utilitários"). Fora
-   dessa categoria a extensão não faz nada.
+   `carros-vans-e-utilitarios` (categoria "Autos e peças › Carros, vans e utilitários") **ou**
+   ser uma busca nacional `olx.com.br/brasil?q=...` cujo termo pesquisado seja reconhecido como
+   carro (marca/modelo/palavra-chave de veículo). Fora disso a extensão não faz nada.
 3. **📊 Executar Análise** → lê só a página atual e mostra a lista (log no console da janela).
    Ou **📚 Varrer páginas** (campo "até N" + "rolar cada página" + "pular os que já estão no
    DB" + "salvar no DB") → percorre a paginação do OLX (`?o=2`, `?o=3`, …) a partir da página
    atual. O nº efetivo de páginas é `min("até N", páginas que a paginação do OLX mostra, 10)`
    — nunca varre mais que 10 nem além da última página real. Extrai as `section` de cada uma,
    **ignora anúncios repetidos** (mesmo id em outra
-   página) e, se marcado, os que **já estão no `db.json`**, categoriza no DeepSeek em lotes,
-   **grava os novos no `db.json`** (registro raso, sem visitar a página) e devolve a lista
+   página) e, se marcado, os que **já estão na base**, categoriza na IA ativa em lotes,
+   **grava os novos na base** (registro raso, sem visitar a página) e devolve a lista
    acumulada. Para sozinho quando a página não traz nada novo; ao final volta a aba para onde
-   você estava. O painel `web/` mostra os registros já na próxima vez que a aba ganhar foco.
+   você estava. O painel mostra os registros já na próxima vez que a aba ganhar foco.
 4. Marque itens (ou **"selecionar todas (N)"** — pega todas as páginas da lista e ignora os
    já analisados) → **🔎 Analisar selecionados** → a aba do OLX navega por cada anúncio, os
-   dados são extraídos, categorizados e gravados em `db.json`. Anúncio que já tem os dados da
+   dados são extraídos, categorizados e gravados na base. Anúncio que já tem os dados da
    página é **pulado** (badge `✔ analisado`); a aba volta para a listagem no fim.
-5. **🗃️ Ver DB** mostra o `db.json`; **limpar DB** zera.
+5. **🗃️ Ver DB** mostra a base salva; **limpar DB** zera.
 
 > Depois de qualquer mudança no código: `npm run build` (ou deixe o `dev` rodando) **e**
 > recarregue a extensão em `chrome://extensions` (botão ↻) — MV3 não recarrega o service
@@ -175,60 +207,69 @@ configurável, testar DeepSeek). Endpoint do proxy guardado em `localStorage` (`
 ```
 OLX_SCRAPPER/
 ├── README.md               ← este arquivo (status + histórico)
-├── setup.sh                ← instala tudo, builda a extensão, abre 3 terminais
-│                             (proxy, webpack --watch, painel Vite)
-├── db.json                 ← "banco" JSON (gerado, não versionado)
-├── proxy/
-│   ├── server.mjs          ← proxy DeepSeek + API do db.json
-│   ├── .env / .env.example ← chave DeepSeek (não versionado)
-│   └── package.json
+├── setup.sh                ← instala tudo, builda extensão + painel (nessa ordem)
+├── db.json                 ← histórico/backup de uma versão anterior (não versionado);
+│                             importável pelo painel em DB/Config, não é mais lido em runtime
 ├── extension/
 │   ├── src/
 │   │   ├── manifest.json
 │   │   ├── background.ts    ← service worker / orquestrador
 │   │   ├── content.ts       ← extração na aba do OLX (sem console)
-│   │   └── popup.ts         ← UI + logs no console da extensão
+│   │   ├── popup.ts         ← UI + logs no console da extensão
+│   │   └── background/
+│   │       ├── store.ts      ← base em chrome.storage.local (substitui db.json)
+│   │       ├── ai-config.ts  ← config/chaves dos provedores de IA (chrome.storage.local)
+│   │       └── ai-client.ts  ← chama DeepSeek/OpenAI direto (substitui proxy/server.mjs)
 │   ├── public/popup.html
 │   ├── styles/popup.css
 │   ├── webpack.config.js
 │   ├── tsconfig.json        ← strict
-│   └── build/               ← bundle (carregar esta pasta no Chrome)
-└── web/                     ← painel de análise (Vite + React + TS)
+│   └── build/               ← bundle final (carregar esta pasta no Chrome)
+│       └── panel/            ← build do web/, gerado pelo Vite (não versionado)
+└── web/                     ← painel completo (Vite + React + TS) — builda pra extension/build/panel/
     ├── index.html
-    ├── vite.config.ts       ← alias @, dev-proxy /proxy → :8787
+    ├── vite.config.ts       ← alias @, base relativo, outDir = ../extension/build/panel
     ├── tailwind.config.js   ← tokens neutros, escala de espaço travada
     └── src/
-        ├── types.ts         ← shape do registro do db.json (fonte única)
+        ├── types.ts         ← shape do registro salvo pela extensão (fonte única)
         ├── lib/
-        │   ├── api.ts       ← camada única que fala com o proxy
+        │   ├── api.ts       ← camada única que fala com o background (chrome.runtime.sendMessage)
         │   ├── rows.ts      ← achata Db → AdRow[] + agregados + oportunidade
         │   ├── format.ts    ← parse/format de preço, km, data
-        │   ├── useDb.ts     ← fetch do /db + /health (loading/vazio/erro)
+        │   ├── useDb.ts     ← lê a base da extensão (loading/vazio/erro) + status da IA
         │   ├── useFilters.ts← filtros ⇄ querystring
         │   └── exporters.ts ← CSV / JSON
         ├── components/
         │   ├── Layout.tsx   ← sidebar + header
         │   ├── data-table/  ← tabela (TanStack) no padrão openstatus
         │   └── ui/          ← button, input, select, badge, checkbox
-        └── pages/           ← Dashboard, Listing, Detail, Compare, Config
+        └── pages/           ← Dashboard, Listing, Detail, Compare, Ai, Config
 ```
 
 ---
 
 ## Decisões de projeto
 
-- **Proxy local em vez de chamar a DeepSeek direto da extensão:** a chave nunca entra no
-  bundle nem trafega pelo navegador. O proxy também é quem escreve em disco (`db.json`) —
-  uma extensão não grava arquivos arbitrários.
-- **`db.json` na raiz, escrito pelo proxy** (não `chrome.storage`): dado fica versionável/
-  inspecionável fora do Chrome, num arquivo único.
+- **Tudo dentro da extensão, sem proxy nem dev server** (mudança de 2026-09-16): a chave de
+  IA fica em `chrome.storage.local`, só acessível pelo próprio perfil do Chrome — nunca sai
+  da máquina do usuário nem trafega por um servidor local. O service worker MV3 pode chamar
+  DeepSeek/OpenAI direto porque `host_permissions` cobre as duas APIs.
+- **`chrome.storage.local` em vez de `db.json`**: elimina a dependência de um processo Node
+  escrevendo em disco. Em troca, o dado não é mais versionável/inspecionável fora do Chrome
+  por padrão — por isso o painel tem exportar **e** importar `db.json` (DB/Config), pra quem
+  quer um backup em arquivo ou está migrando de uma instalação com a versão antiga (proxy).
+- **Painel como página da própria extensão** (`chrome-extension://.../panel/index.html`), não
+  mais um dev server Vite à parte: abre pelo botão do popup, sem precisar de outro processo
+  rodando. Usa `HashRouter` (não `BrowserRouter`) porque não há servidor pra resolver rotas
+  profundas no F5 de uma página de extensão.
 - **Janela separada** (`chrome.windows.create`) em vez de popup de toolbar: não fecha ao
   clicar fora; cabe a lista paginada.
 - **Reutiliza a aba do OLX** nas análises de detalhe (`chrome.tabs.update`), não abre abas
   novas; ao final volta para a listagem.
 - **`content.ts` sem `console.*`:** todo diagnóstico sai no console **da extensão**.
-- **Sem dependências de runtime** (nem na extensão, nem no proxy). Dev deps só o toolchain
-  (webpack, ts-loader, typescript, copy-webpack-plugin).
+- **Sem dependências de runtime na extensão** (só `chrome.storage`/`fetch`, nativos do
+  browser). Dev deps só o toolchain (webpack, ts-loader, typescript, copy-webpack-plugin) e,
+  pro painel, React/Vite/Tailwind.
 
 ---
 
@@ -238,17 +279,694 @@ OLX_SCRAPPER/
   se o OLX mudar o markup, cai no fallback (menos campos). Ajustar seletores conforme dumps
   reais do `detail` no `db.json`.
 - O service worker MV3 pode ser encerrado em lotes muito longos de "Analisar selecionados".
-- Sem testes automatizados ainda.
+- Cobertura de testes automatizados ainda é mínima (só as funções puras mais críticas —
+  `isCarro`, `robustMean`, `isCarBrand`; `npm test` em `extension/` e `web/`). Nada de UI,
+  integração com `chrome.*` ou fluxo ponta-a-ponta é testado ainda.
 - Categorização assume **veículos**; outras categorias do OLX não foram tratadas.
 - O recorte "só carros" depende do campo `tipo` que a **IA** infere. Se ela errar o `tipo`
   (ou não devolver), o filtro é permissivo: **sem `tipo` => trata como carro**. A lista de
-  tipos não-carro fica em `NAO_CARRO` no `background.ts`.
+  tipos não-carro fica em `NAO_CARRO` em `background/constants.ts`.
+- A base agora vive em `chrome.storage.local` (com `unlimitedStorage`), então **desinstalar a
+  extensão apaga os dados** — exporte pelo painel (DB/Config → "db.json cru") antes de
+  desinstalar/trocar de máquina, e reimporte depois pelo botão "Importar db.json".
 
 ---
 
 ## Histórico de atualizações
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
+
+### 2026-10-05 (6) — Versão 1.1.0 para a Chrome Web Store
+
+- **`manifest.json`/`extension/package.json`/`package-lock.json` → `1.1.0`.** O lock estava
+  parado em `1.0.0`. Subiu a versão *minor* porque a versão reúne a rodada de usabilidade das
+  entradas (1) a (5) de hoje: veredictos iguais em todas as telas, "Condição (IA)" separada
+  da "Oportunidade", selo e legenda na OLX, popup cabendo em 600px, textos sem jargão e
+  acessibilidade.
+- `./production.sh` rodou limpo (`validate:store` OK) e gerou `dist/olx-workspace-1.1.0.zip`
+  (184K, 16 arquivos, sem `.map`).
+
+### 2026-10-05 (5) — Usabilidade: ajustes finais
+
+- **"Preço" e "Oportunidade" separados na Listagem:**
+  - Na linha da Listagem, o rótulo "Oportunidade:" virou "Preço:", porque mostra a frase de
+    preço vs mercado.
+  - Nos detalhes expandidos, viraram dois itens: "Preço" (frase) e "Oportunidade" (rótulo +
+    nota 0-100).
+  - Chave `HELP.oportunidade` renomeada para `HELP.preco`.
+- **Popup sem jargão de "DB":** no modo Avançado e nas mensagens de progresso, "DB"/"db.json"
+  viraram "lista"/"anúncios salvos" ("Ver dados salvos", "Restaurar backup", "Apagar todos os
+  anúncios salvos", "Carregar pendentes salvos" etc.). Os ids de elementos e a chave de
+  storage não mudaram. O botão de apagar tudo do popup ganhou uma confirmação, que antes não
+  existia.
+- **Hierarquia de texto no painel:** `--muted` claro mudou de #6b6b6b para #575757, porque
+  tinha ficado quase igual ao novo `--subtle` (#6f6f6f).
+- **`.gitignore`:** passa a ignorar `Claude outputs/` (capturas de sessões com o Claude). A
+  linha quebrada `prompt.md/dist/` virou `prompt.md` (o `/dist/` já tinha linha própria).
+
+### 2026-10-05 (4) — Usabilidade, fase 4: textos, layout e acessibilidade do painel
+
+- **Textos sem jargão:**
+  - Na Listagem, "Descrição:" virou "Versão:", porque o campo mostra a versão.
+  - "Remover do DB" virou "Remover da lista" e "Limpar DB" virou "Apagar todos os anúncios
+    salvos". As confirmações não citam mais `db.json`.
+  - "Timeout (ms)" virou "Tempo máximo de espera (segundos)". O formulário converte para ms;
+    a chave `timeoutMs` não mudou.
+  - O menu "Config" virou "Configurações" (o endereço continua `/db`).
+  - O estado vazio diz "Nenhum anúncio salvo ainda".
+- **Configurações:** a importação ("Restaurar backup"), o "Baixar backup completo" (antigo
+  "db.json cru") e os "Dados brutos" (antigo "JSON cru") foram para uma seção recolhível
+  **Avançado**. Nomes de arquivo e formatos continuam os mesmos.
+- **Aviso de IA:** saiu o indicador repetido do cabeçalho do Dashboard. Ficam o banner e o
+  indicador da barra lateral.
+- **Responsividade:** abaixo de 768px a grade do `Layout` tinha uma coluna implícita (`auto`)
+  que crescia até a largura do menu horizontal (cerca de 520px). Isso cortava o "Configurar
+  agora" e o "Por página". Correção: `grid-cols-1` + `min-w-0`. Os botões do `PageHeader`
+  agora quebram linha, e o resumo compacto do Comparador também. Medido sem rolagem
+  horizontal em todas as rotas, de 360 a 820px.
+- **Comparador:** sem foto, aparece o mesmo "sem imagem" do Detalhe. A linha "R$/km" saiu. Em
+  "Opcionais", aparece "—" quando o anúncio não informa.
+- **Onboarding:** traduzido ("Compare" virou "Compare antes de decidir"), com textos que
+  mudam conforme a lista está vazia (ir à OLX e usar a extensão) ou com anúncios (filtrar e
+  comparar).
+- **Acessibilidade:**
+  - `--accent` claro mudou de #0071e3 para #0066cc (4,8:1 sobre `--accent-weak`) e
+    `--subtle` de #9a9a9a para #6f6f6f (4,8:1 sobre o fundo).
+  - O `HelpTip` virou `<button type="button">`.
+  - Os cabeçalhos vazios da tabela ganharam texto `sr-only`.
+  - As duas paginações da Listagem têm rótulos únicos.
+  - Links no meio do texto agora são sublinhados.
+  - O `<pre>` dos dados brutos ganhou `tabIndex={0}`.
+
+### 2026-10-05 (3) — Usabilidade, fase 3: popup cabe em 600px
+
+- **Layout compacto:** o Chrome limita popups a 600px de altura, e o "Começar análise" ficava
+  abaixo da dobra (cerca de 662px medidos, com o cabeçalho quebrando em 2 linhas). O cabeçalho
+  agora fica em 1 linha, com subtítulo menor, e paddings e espaçamentos foram reduzidos em
+  `styles/popup.css`. No modo Iniciante o popup mede cerca de 540px, ou 564px no pior caso
+  (aviso de IA + motivo de bloqueio visíveis).
+- **Tutorial (`tour.ts`):** antes de posicionar cada passo, o alvo é rolado para o centro
+  (`scrollIntoView({ block: "center" })`) e medido de novo no frame seguinte. O destaque é
+  reposicionado também no `scroll`, e o card nunca sai pela parte de baixo da janela.
+- **"Começar análise" desabilitado com motivo:** sem uma busca da OLX aberta na aba, aparece
+  "Abra uma busca de carros na OLX para começar.". Em "Varrer todas as páginas" sem IA
+  configurada, aparece "Configure uma IA primeiro…". "Analisar esta página" usa a análise
+  rápida, que não chama a IA, por isso não é bloqueada por falta de IA. O motivo fica logo
+  abaixo do botão (`aria-describedby`).
+- **Contraste:** `--muted` no tema claro passou de #6b7280 para #5f6673 (5,3:1 sobre o fundo
+  #f4f5f7; antes era 4,43:1).
+
+### 2026-10-05 (2) — Usabilidade, fase 2: selos e bordas na página da OLX
+
+Mudanças em `extension/src/content/card-marking.ts`.
+
+- **Selo fora da foto:** o `.olxw-score-badge` ficava no canto superior direito e cobria o
+  botão de favoritar da OLX. Agora entra logo depois do preço do card (sem preço, depois do
+  título; sem nenhum dos dois, no canto inferior esquerdo do card). Assim não cobre o
+  favoritar nem selos como "Destaque"/"Histórico Veicular".
+- **Explicação acessível:** saiu o `pointer-events: none`, então o `title` volta a aparecer
+  no hover. O selo ganhou `role="img"` e um `aria-label` com o mesmo texto.
+- **Contraste:** as faixas mudaram para #15803d (80+), #b45309 (50 a 79) e #b91c1c (abaixo de
+  50). Todas dão pelo menos 4,5:1 com texto branco de 12px. O badge de condição do popup usa
+  as mesmas cores.
+- **Bordas com legenda:** a borda "pendente" saiu do amarelo, que parecia destaque pago da
+  OLX, e virou cinza pontilhada ("salvo, aguardando análise"). A página ganha uma legenda
+  fixa e recolhida no canto inferior esquerdo, que só aparece quando algum card foi marcado e
+  some com "Ocultar indicadores". Os textos do popup foram atualizados.
+
+### 2026-10-05 — Usabilidade, fase 1: mesmos números e veredictos em todas as telas
+
+Correções vindas de uma avaliação de usabilidade/UI.
+
+- **Mesmo carro, veredictos diferentes (causa):** o Detalhe chamava `toRows()` só com o
+  próprio anúncio e o Comparador só com os 2 a 4 carros selecionados. Com isso, a média de
+  mercado era calculada sem o resto da base, e o mesmo Sandero aparecia como "Caro, 12% acima"
+  na Listagem e "Sem dados suficientes" no Comparador. Agora as duas telas pegam as linhas
+  de `useDb().rows` (base inteira) via `rowsByIds()` em `web/src/lib/rows.ts`. O grupo de
+  mercado também passou a usar a mesma marca da linha (IA ou propriedade "Marca" da OLX).
+  `row.opportunity`, que tinha uma conta paralela própria, agora vem da análise (`isGoodDeal`).
+- **Dois scores com nomes distintos:** "Oportunidade" (`opportunityScore`, calculado no
+  painel) e "Condição (IA)" (`categoria.score`, o número do selo na OLX). A Condição (IA)
+  passou a aparecer na Listagem (linha, card e detalhes), no Comparador e no Detalhe. O selo
+  na OLX e o badge do popup agora mostram "Condição 85/100".
+- **Confiança:** sem amostra de mercado, fica no máximo em "Média". Antes chegava a "Alta"
+  junto com "Poucos dados para comparar o preço".
+- **Preço suspeito:** com o alerta `price_far_below_market`, o selo vira "Verificar preço"
+  (tom de atenção) em vez do verde "Bom negócio" (novo tom `verify` em `colors.ts`).
+- **Dashboard alinhado com a Listagem:** o card "Boas oportunidades" virou "Bons negócios" e
+  a seção "Melhores oportunidades" virou "Melhores negócios". As duas usam o mesmo critério
+  do selo "Bom negócio" (antes exigiam nota de Oportunidade 70 ou mais e ficavam vazias). A
+  seção continua com o limite de no máximo 1 alerta relevante.
+- **Alerta informativo:** `INFORMATIONAL_ALERT_TYPES`/`relevantAlerts()` foram para o
+  `rows.ts` e todas as telas usam essas funções. O aviso "poucos veículos para comparação"
+  não conta mais como "1 alerta". No Detalhe, aparece como nota neutra em "Preço vs mercado".
+- Testes novos em `rows.test.ts` cobrindo essas regras.
+
+### 2026-09-22 (6) — Versão 1.0.2 + `.gitignore` corrigido pro `dist/` da raiz
+
+- **`manifest.json`/`extension/package.json` → `1.0.2`** (era `1.0.1`/`1.0.0`, dessincronizados)
+  pra poder subir a nova versão (tokens de design + testes + LICENSE) na Chrome Web Store —
+  a loja exige `version` maior que a última publicada. `./production.sh` rodou limpo
+  (`validate:store` OK) e gerou `dist/olx-workspace-1.0.2.zip`.
+- **Bug de `.gitignore` corrigido**: só `web/dist/` estava ignorado; o `dist/` da **raiz**
+  (onde `production.sh` grava o `.zip` pra Chrome Web Store) não estava — apesar da entrada
+  de 2026-09-21 (2) dizer que sim. Adicionado `/dist/` no `.gitignore` da raiz.
+
+### 2026-09-22 (5) — Tokens de cor/tipografia/raio a partir do `Design.md` (ref. Apple)
+
+- **Só os tokens, não o layout**: `Design.md` é um sistema de marketing (hero preto,
+  headlines de 64px, cards de 28px) — incompatível com um dashboard denso de tabelas/filtros.
+  Reaproveitado apenas paleta, forma de botão e tipografia de números, mantendo tabelas,
+  cards e densidade atuais intactos.
+- **Paleta (painel `web/` e popup da extensão)**: acento trocado de roxo/indigo para **Purchase
+  Blue** `#0071e3` (claro) / `#2997ff` (escuro, clareado p/ contraste sobre preto); sucesso
+  (`--ok`) para **Battery Green** `#00d959` (literal no escuro, escurecido p/ `#009440` no
+  claro por legibilidade em texto sobre branco); atenção (`--warn`) para **New Orange**
+  `#b64400` (claro) / **Launch Orange** `#ff791b` sobre **Ember Black** `#311400` (escuro).
+  Mesma paleta nos dois lugares (`web/src/index.css` e `extension/styles/popup.css`).
+- **Botão primário em pill** (`rounded-full`/`999px`, "Purchase Blue Pill Button" do
+  Design.md) — só o botão de ação principal (`Button` variant `default` no painel,
+  `.btn-primary` no popup); os demais controles mantêm o raio pequeno de sempre.
+- **Sem sombra em card/linha de tabela** (regra do Design.md: profundidade vem de contraste
+  de superfície/borda, não de `box-shadow`) — `ResultCard`, `ResultRow` e `.lift` passaram a
+  usar mudança de cor de borda/fundo no hover em vez de `shadow-card`/`shadow-card-hover`.
+  O FAB de ajuda (`HelpButton`) e o modal continuam com sombra (elementos flutuantes, não
+  "card").
+  - **KPI do Dashboard** (`SummaryCard`): número passou a `text-lg font-semibold
+  tracking-tight` — antes usava `text-xl`, que não existe na escala travada do
+  `tailwind.config.js` (só `xs/sm/base/lg`) e por isso não tinha nenhum tamanho aplicado.
+  Não visualizado no navegador nesta sessão (sem ferramenta de browser disponível) — conferir
+  visualmente antes de publicar. Só typecheck + build + testes.
+
+### 2026-09-22 (4) — LICENSE, primeiros testes unitários e resumo em inglês no README
+
+- **`LICENSE` (MIT)** adicionada na raiz — o repositório é público no GitHub e estava sem
+  licença.
+- **Primeiros testes automatizados**, via `vitest` (dev dependency só, não entra no bundle):
+  `extension/src/background/vehicle-filter.test.ts` cobre `isCarro` (mantém carro, descarta
+  tipos em `NAO_CARRO`, é permissivo quando `tipo` falta/é desconhecido); `web/src/lib/
+  rows.test.ts` cobre `robustMean` (agora exportada) — média ignora preço com 100%+ de desvio
+  da mediana; `web/src/lib/brands.test.ts` cobre `isCarBrand` (normalização de acento/caixa,
+  rejeita lixo). `npm test` em cada pacote (`extension/`, `web/`). Não mudou nenhum
+  comportamento de produção, só cobertura do que já existia.
+- **Resumo em inglês no topo do README** — o resto do documento continua em português (público
+  é o usuário final brasileiro), mas quem chega pelo GitHub/LinkedIn sem ler PT-BR agora tem o
+  essencial (o que é, stack, como rodar) logo no início.
+
+### 2026-09-22 (3) — Aviso "Nenhuma IA configurada" atualiza sozinho
+
+- O toast "Nenhuma IA configurada" só reavaliava no `window.addEventListener("focus", ...)` do popup — como a Config de IA é feita no painel (aba/janela separada), configurar lá não focava a janela do popup, então o aviso só sumia depois de um refresh manual. Agora `ai-missing.ts` também escuta `chrome.storage.onChanged` na chave `olx.aiConfig` e reavalia na hora em que a config muda, venha de onde vier. Só typecheck + build.
+
+### 2026-09-22 (2) — Tutorial guiado no popup + quantidade na análise rápida
+
+- **Tutorial guiado**: botão "🎓 Tutorial" no cabeçalho do popup roda um tour em 5 passos (spotlight sobre o elemento + card com explicação, Voltar/Próximo/Pular) cobrindo o alternador Iniciante/Avançado, os dois tipos de ação, a quantidade a analisar, o botão de começar e o "Abrir painel". Vem **habilitado por padrão** (`tourAuto: true` em `prefs.ts`) e dispara sozinho na primeira vez que a extensão é aberta; depois disso só volta pelo botão (`popup/tour.ts`).
+- **Quantidade na análise rápida**: Modo Iniciante ganhou um campo "Quantidade a analisar" (1–50, **padrão 5** na primeira vez) que limita quantos cards do topo da página entram na "Analisar esta página" — antes analisava todos os cards da página sem opção de limite. `quickAnalyze` no background agora aceita um `limit` opcional (`background/actions/quick-analyze.ts`); o Modo Avançado continua sem limite (chamada sem `limit` = analisa tudo, comportamento inalterado). Só typecheck + build.
+
+### 2026-09-22 — Redireciona para busca de carros em página incompatível
+
+- Ao clicar no ícone da extensão numa aba que não é uma página de carros do OLX (`isCarrosOlxUrl`), a aba ativa é navegada para `https://www.olx.com.br/autos-e-pecas/carros-vans-e-utilitarios` antes de abrir o painel (`background/panel.ts`). Evita abrir o popup "solto" sem uma listagem válida pra operar. Só typecheck.
+
+### 2026-09-21 (5) — Modo Iniciante: removido "Mostrar opções"
+
+- Saíram os checkboxes Análise rápida / Rolar automaticamente / Destacar anúncios. Valores fixos: **análise rápida ligada, destaque ligado, rolagem automática desligada** (constantes em `popup/beginner.ts`). O campo "Páginas para varrer" continua, num card próprio que só aparece em "Varrer páginas". Prefs antigas no localStorage são ignoradas. Só typecheck.
+
+### 2026-09-21 (4) — Comparador: rola até a análise da IA
+
+- Ao clicar em comparar com IA / métricas, a página rola suavemente até "Análise complementar da IA" (e de novo quando o resultado chega); respeita `prefers-reduced-motion`. Só typecheck.
+
+### 2026-09-21 (3) — Popup: itens mais fáceis de selecionar
+
+- Checkbox maior (22 px) com área de clique estendida até a borda do card, e o **card inteiro** agora alterna a seleção ao clicar (o link "Ver no OLX" continua abrindo normalmente). Só typecheck; não conferi no navegador.
+
+### 2026-09-21 (2) — `production.sh`: pacote para a Chrome Web Store
+
+- Novo `production.sh` (raiz): build limpo (extensão → painel), `validate:store` e gera `dist/olx-workspace-<versão>.zip` (versão lida do manifest, sem `.map`). Pré-requisito: `zip`. `dist/` entrou no `.gitignore`.
+
+### 2026-09-21 (1) — Correções: outliers na média, marcas válidas, análise no topo, limpar sem dados
+
+- **Média sem outliers** (`web/src/lib/rows.ts`): preços com 100% ou mais de variação (acima ou abaixo) da mediana do grupo não entram na média de mercado nem na média do Dashboard.
+- **Select de Marca validado** (`web/src/lib/brands.ts`): só aparecem marcas de carro conhecidas; lixo de outras categorias do OLX some do filtro.
+- **Análise e métricas no topo** da página do anúncio (`Detail.tsx`): o resumo vem antes da galeria.
+- **"Remover sem dados"** na Listagem: apaga (com confirmação) anúncios sem preço, km e ano.
+
+### 2026-09-18 (14) — Animações simples de movimento no painel
+
+- **Troca de página:** conteúdo entra com fade + leve subida (`Layout.tsx`, chaveado por rota); menu
+  lateral desliza da esquerda ao abrir.
+- **Entrada em sequência (`.stagger`):** cards-resumo e listas do Dashboard e cards da Listagem
+  aparecem um após o outro (40 ms de intervalo).
+- **Hover:** cards do Dashboard sobem 2 px (`.lift`); botões afundam ao clicar (`active:scale-95`).
+- **Modal e menu de ajuda:** entram com zoom leve; banner de "sem IA" e caixas do Modo aprendizado
+  deslizam de cima.
+- **Acessibilidade:** `prefers-reduced-motion` desliga todas (regra global em `index.css`).
+- Keyframes em `tailwind.config.js` (`popIn`, `slideDown`, `slideInLeft`). Não conferi no navegador.
+
+### 2026-09-18 (13) — Menu lateral fixo no scroll
+
+O `<aside>` do painel (`Layout.tsx`) agora é `sticky top-0 h-screen` a partir de `md`: fica parado
+enquanto o conteúdo rola, com rolagem própria se a janela for baixa. No celular a barra de
+navegação continua no fluxo normal (rola junto com a página).
+
+### 2026-09-18 (12) — Dark mode no painel
+
+Botão de tema no menu lateral que alterna **Sistema → Claro → Escuro** (`olx.theme` em
+`localStorage`; "Sistema" acompanha o SO em tempo real). O popup da extensão já seguia o tema do
+sistema (`prefers-color-scheme` em `popup.css`) e não mudou.
+
+- Cores do painel viraram variáveis CSS em canais RGB (`index.css`), com os valores escuros em
+  `:root[data-theme="dark"]`; `tailwind.config.js` só referencia as variáveis. Cores hexadecimais
+  fixas dos componentes (badges, alertas, botões, filtros) viraram tokens (`ok-bg`, `warn-border`,
+  `accent-hover`…).
+- `lib/theme.tsx` aplica o tema já na importação (antes do 1º render, sem piscar);
+  `components/ThemeToggle.tsx` é o botão.
+- Ao criar cor nova, use token — hex fixo em classe quebraria o modo escuro.
+- Só typecheck + build + `validate:store`; **não conferi o visual no navegador**, então vale
+  olhar contraste em cada tela.
+
+### 2026-09-18 (11) — Modo aprendizado no painel
+
+Interruptor **"Modo aprendizado"** no menu lateral do painel (lembrado em `localStorage`,
+`olx.learningMode`). Ligado, cada tela ganha caixas explicativas; desligado, nada muda.
+
+- `lib/learning.tsx` (contexto) e `components/learning/Learn.tsx` (`LearnNote`, `LearnPage`,
+  `LearningToggle`).
+- **Por tela:** o que ela é, o que dá pra fazer e como ler — Dashboard, Listagem, Anúncio,
+  Comparador e Config. Notas menores explicam cada card/lista do Dashboard, os detalhes expandidos
+  da Listagem, a conta do score no Anúncio (base 50, ajustes de preço de -30 a +30, condição da IA
+  de -5 a +10, rótulos, confiança), as especificações da IA e o resumo do Comparador.
+- Os números citados vêm das constantes de `lib/rows.ts` e do `Dashboard.tsx`; se essas mudarem, os
+  textos precisam ser atualizados junto.
+- Só typecheck + build + `validate:store`; não abri no navegador.
+
+### 2026-09-18 (10) — Vários provedores de IA, com modelos em select, dentro de Config
+
+O sistema só funciona com IA, então agora ele **avisa quando não há nenhuma configurada** e a
+configuração deixou de ser fixa em DeepSeek/OpenAI.
+
+- **Multi-provedor.** `ai-config.ts` guarda uma **lista** de provedores (`olx.aiConfig` =
+  `{ activeId, providers[] }`), podendo cadastrar vários (inclusive dois do mesmo tipo). Um é o
+  ativo; as análises usam o ativo. Não há migração do formato antigo (a base foi zerada).
+- **Catálogo com modelos reais** (`ai-presets.ts`): OpenAI, DeepSeek, Google Gemini, Groq, Mistral,
+  xAI, OpenRouter (dá acesso a Claude etc.) e "Outro (compatível com OpenAI)" para endpoint
+  próprio (Ollama, LM Studio…). Cada um tem um **select de modelos** + opção "Outro modelo
+  (digitar)". Só entraram modelos de chat sem raciocínio obrigatório, porque a chamada usa
+  `temperature: 0`. Isso também corrige o modelo padrão do DeepSeek (`deepseek-flash` não existe;
+  agora `deepseek-chat`).
+- **Onde configurar:** página **Config** do painel (`web/src/components/config/AiProviders.tsx`).
+  A antiga aba "IA" (`pages/Ai.tsx`, rota `/ia`) foi removida; o item "DB / Config" virou "Config".
+- **Aviso de "sem IA":** banner global no painel (`AiMissingBanner`), aviso no popup
+  (`popup/ai-missing.ts`, abre Config ao clicar), status no menu lateral e erro claro
+  `AI_NOT_CONFIGURED` do background.
+- **Mensagens do background:** `setAiProvider` (agora por `providerId`), `saveAiProvider` e
+  `removeAiProvider` substituem `updateAiProviderConfig`. `getAiConfig` devolve também o catálogo.
+- **Manifest:** `host_permissions` cobre os provedores do catálogo; `optional_host_permissions`
+  permite pedir acesso a um endpoint próprio na hora de salvar.
+- Não testado no Chrome com chaves reais: só typecheck + build + `validate:store`. As listas de
+  modelos refletem o que eu sabia de cada API; se algum sumir do provedor, use "Outro modelo".
+
+### 2026-09-18 (9) — Exigência de busca de carros só no "Analisar página"
+
+`getActiveOlxTab` ganhou a opção `requireCarSearch`. O erro "Abra uma página de busca de carros do
+OLX…" agora vale só para **Analisar página** e **Análise rápida** (páginas abertas pelo usuário).
+As demais ações (varrer páginas, analisar selecionados, indicadores, rolagem), em que a própria
+extensão navega/abre páginas do OLX, aceitam qualquer aba do OLX.
+
+### 2026-09-18 (8) — Painel web: usabilidade da Listagem, ajuda e responsividade
+
+Refactor de usabilidade do painel (`web/`), adaptado à stack existente (React + Tailwind, sem Zustand:
+os filtros já vivem na querystring).
+
+- **Listagem**: tabela reduzida a 5 colunas (Veículo, Ano, Km, Preço, Status) + seleção e ▶; 2ª linha
+  com descrição/oportunidade/alertas; clicar expande os detalhes inline (`components/results/*`).
+  Abaixo de 1024px vira grid de cards (foto 16/9, preço grande, botão "Ver detalhes" 100% width).
+- **Filtros**: busca larga (44px, 16px, sugestões via datalist), chips removíveis, "Limpar tudo",
+  "N anúncios encontrados (Filtrou: -X)" (verde/cinza), mensagem de zero resultados, fade ao mudar a lista.
+  No mobile os filtros avançados ficam recolhidos atrás do botão "Filtros".
+- **Paginação** (`common/Pagination.tsx`) acima e abaixo, botões de 44px, janela de páginas, "Mostrando X–Y de Z",
+  scroll ao topo ao trocar de página.
+- **Cores** (`lib/colors.ts`): verde/amarelo/laranja/cinza derivados do `priceStatus` (limiar ±5%), sempre com
+  ícone + texto (`StatusBadge`).
+- **Ajuda**: tooltips `?` (Status, Oportunidade, Alertas, Mercado, Local), botão flutuante de ajuda (tour, cores,
+  filtros, FAQ), onboarding de 3 telas (preferência em localStorage), breadcrumb em todas as páginas.
+- **Layout**: menu lateral vira barra horizontal < 768px; Input/Select com 44px e 16px no mobile.
+- Removidos `data-table/{data-table,pagination,toolbar}.tsx` (só a Listagem usava).
+- **Não feito**: Comparador redesenhado, modo escuro, Zustand/React Query, testes automatizados,
+  Storybook, drawer de filtros (usa painel recolhível), item "Contato" do menu de ajuda (sem canal definido).
+
+### 2026-09-18 (7) — Toast de análise pendente
+
+- Ao abrir o popup (e ao fim de cada operação) a extensão lê o DB; se houver carros só com o
+  rascunho da listagem, aparece um toast "N carros com análise pendente" (`src/popup/pending-toast.ts`).
+  Clicar abre um diálogo "Deseja fazer a análise detalhada de N carros agora?"; confirmando, roda o
+  "Analisar selecionados" em todos (Modo Iniciante usa o spinner/cancelar dele; Avançado usa a barra
+  de status). O toast some enquanto uma operação roda.
+- `analyzeTargets()` extraído de `actions/analyze-selected.ts` para reuso.
+- Limitação: a "Análise rápida" não grava no DB, então só conta como pendente o que veio de
+  "Analisar página"/"Varrer páginas" (rascunho raso).
+
+### 2026-09-18 (6) — Indicadores ativados por padrão
+
+- No Avançado o botão já abre como "Ocultar indicadores" (estado inicial `indicatorsShown = true`),
+  refletindo que a página marca os cards sozinha. Limitação: se você ocultou numa sessão anterior
+  e reabriu o popup, o rótulo volta a "Ocultar" mesmo com a página oculta (clique duas vezes).
+
+### 2026-09-18 (5) — Ajustes de botões no Avançado
+
+- Removido o botão "Auto-scroll" do Avançado (a rolagem segue como opção "Rolar automaticamente" no
+  Iniciante e "Rolar cada página" na varredura). "Exibir indicadores" e "Carregar pendentes do DB"
+  foram para a aba ⚙️ Config; a aba "Analisar página" ficou com "Analisar página" + "Análise rápida".
+
+### 2026-09-18 (4) — Aba "Config" no Modo Avançado
+
+- Os textos explicativos (indicadores, análise rápida, rascunho no DB) saíram da aba
+  "Analisar página" e foram para uma nova aba **⚙️ Config** ("Como funciona"). Só muda a UI.
+
+### 2026-09-18 (3) — Cancelar operação em andamento
+
+- Botão **✋ Cancelar** no Modo Iniciante (durante a análise) e **Cancelar operação** no
+  Avançado (aparece enquanto os botões estão travados). Manda `cancel` ao background.
+- Cancelamento cooperativo: `background/cancel.ts` (`beginOperation`/`throwIfCancelled`/
+  `CancelledError`). Checagens entre páginas da varredura, entre anúncios do "Analisar
+  selecionados" e entre lotes da IA; a chamada à IA em curso é abortada (`AbortSignal.any`).
+  A rolagem para via `stopScroll` no content script.
+- Ao cancelar, a aba volta à página original e o roteador responde `{ ok: false, cancelled: true }`
+  (o popup mostra "cancelada", não erro). Varrer/Analisar página **descartam** o resultado
+  parcial; "Analisar selecionados" mantém o que já foi salvo no DB.
+- "Análise rápida" não tem cancelamento (é instantânea).
+
+### 2026-09-18 (2) — Popup com Modo Iniciante / Avançado
+
+- **Modo Iniciante (padrão)** no popup: 1) escolher "Analisar esta página" ou "Varrer todas as
+  páginas"; 2) opções recolhidas ("Análise rápida", "Rolar automaticamente", "Destacar
+  anúncios", nº de páginas na varredura) com tooltip `?`; 3) "🚀 Começar análise" com spinner,
+  mensagem de sucesso/erro e link "Abrir painel de resultados". Linha "N anúncios serão
+  analisados" atualizada a cada 5 s / ao focar a janela (lê os cards da aba da OLX).
+- **Modo Avançado** = a interface anterior inteira (abas, seleção, Ver/Importar DB), só
+  escondida/mostrada; alternar não perde estado. O resultado do Iniciante também aparece na
+  lista do Avançado.
+- Preferências (modo, ação, opções) em `localStorage` — `src/popup/prefs.ts`.
+- Jargão trocado nos textos do Iniciante e em parte do Avançado (sem "IA"/"heurística"/"DB").
+- Arquivos novos: `src/popup/{beginner,mode,prefs}.ts`; alterados `popup.html`, `dom.ts`,
+  `index.ts`, `popup.css`.
+- **Decisão:** mantido TypeScript vanilla (o popup não é React e o CLAUDE.MD veda nova lib de
+  estado). Fica de fora: persistir a seleção do Avançado (a lista de itens não é persistida) e
+  contagem em tempo real durante a execução.
+
+### 2026-09-18
+
+- **Preparação para publicação na Chrome Web Store.** Pedido: publicar a extensão na loja.
+  Adicionados ícones (`extension/src/icons/icon{16,32,48,128}.png`, gerados a partir de
+  `logo.png` na raiz — versão final sem o logotipo "OLX", pra evitar rejeição por uso de marca
+  de terceiro) referenciados em `manifest.json` (`icons` e
+  `action.default_icon`) e copiados no build pelo `webpack.config.js`. Criado
+  `extension/scripts/validate-store-readiness.js` (`npm run validate:store`), que roda contra
+  `extension/build/` e falha se: `manifest_version` não for 3, faltar `icons`/ícone declarado
+  ausente do disco, `content_security_policy` tiver `unsafe-eval`, os bundles usarem
+  `eval()`/`new Function()`/`importScripts()` remoto/`document.write()` (proibidos no
+  Manifest V3), ou houver padrão de chave de API (OpenAI/DeepSeek `sk-...`, Google `AIza...`)
+  hardcoded no bundle — chave deve vir do usuário via `chrome.storage`, nunca embutida. Também
+  passou a checar `build/panel/index.html` (o painel React, buildado por `web/` via Vite):
+  como o build da extensão (webpack, `clean: true`) apaga `extension/build/` inteiro, buildar só
+  `extension/` sem buildar `web/` **depois** derruba o painel ("Abrir painel" quebra em
+  produção com `ERR_FILE_NOT_FOUND`) — foi o que aconteceu ao rodar `npm run build` isolado na
+  extensão; corrigido rebuildando `web/` na ordem certa (ver `setup.sh`). Novo workflow
+  `.github/workflows/extension-validate.yml`: em toda mudança em `extension/**` ou `web/**`
+  (push/PR), builda extensão → builda painel **nessa ordem** → `validate:store`, pra pegar essa
+  e outras regressões de compliance antes de gerar o pacote pra loja.
+- **Botão "⚡ Análise rápida" — score sem IA, só com os dados do card.** Pedido: varrer os
+  carros da página e dar um score usando só o que já está no componente do card (o
+  `<section class="olx-adcard">`), sem chamar a IA. Novo `background/quick-score.ts`
+  (`quickCategorize(card)`): lê `ano` do título (regex por ano de 4 dígitos), `motor`,
+  `carroceria`, `combustível` e `câmbio` dos `details[]` (mesmos `aria-label` que o
+  `listing-extractor.ts` já lê pra achar km/cor — ex.: `aria-label="Motor 1.5"`,
+  `aria-label="Carro tipo SUV"`), e calcula um score 0-100 puramente aritmético a partir de
+  km ÷ idade (mesma lógica de "km suspeita" que a IA já usa em `ai-client.ts`, só que sem
+  pedir pra IA calcular). Novo `background/actions/quick-analyze.ts` (ação `quickAnalyze`,
+  roteada em `message-router.ts`) extrai os cards, categoriza local e pinta na página
+  (`markCards`) com um **novo status "quick"**: borda azul tracejada + badge `⚡score`,
+  distinto do verde (IA, "done") e amarelo (pendente). `content/card-marking.ts` ganhou uma
+  prioridade de status (`pending < quick < done`) pra o auto-mark (que roda a cada mutação da
+  página, lendo só o DB) não apagar um badge "quick" recém-pintado nem um "done" da IA. Botão
+  novo em `popup.html` (ao lado de "Analisar página"), lista de resultados no popup também
+  mostra o badge `⚡ rápido (sem IA)` (`item-row.ts`). Marca/modelo/versão continuam vazios —
+  isso ainda exige IA ("Analisar página"/"Analisar selecionados"); a análise rápida é só uma
+  triagem instantânea de km/ano pra decidir o que vale a pena mandar pra IA depois.
+- **Indicador de carregamento na própria página do OLX.** Pedido: mostrar que a extensão está
+  trabalhando direto na aba do OLX, não só no log da janela do popup. Novo módulo
+  `extension/src/content/loading-overlay.ts` (`showLoading(text)` / `hideLoading()`): pinta um
+  badge fixo no canto superior direito da página (spinner + texto, mesmo estilo visual dos
+  badges de score já existentes — sem shadow DOM, `<style>` injetado em `document.head`). Duas
+  novas ações de content script (`showLoading`/`hideLoading`, `content/types.ts` +
+  `content/message-router.ts`) e um helper no background
+  (`extension/src/background/loading.ts`: `setPageLoading()`/`clearPageLoading()`, best-effort —
+  ignora se a aba já navegou e o content script ainda não recarregou). Ligado em
+  `actions/analyze.ts` ("Analisando anúncios..."), `actions/crawl-listing.ts` (texto por página
+  durante a varredura + "Categorizando N anúncio(s)..." depois de voltar pra listagem original)
+  e `actions/analyze-selected.ts` (texto por anúncio, alternando "Analisando..." /
+  "Categorizando..."), sempre limpo em `finally` para não ficar preso na tela se algo falhar.
+- **Aceita busca nacional `olx.com.br/brasil?q=...`, além da categoria de carros.** Pedido:
+  aceitar URLs como `https://www.olx.com.br/brasil?q=ford%20ka`, mas **bloquear** se a busca
+  não for de carro. `isCarrosOlxUrl()` (`extension/src/background/tabs.ts`) agora também aceita
+  URLs com path `/brasil` **se** o `q=` contiver marca/palavra-chave de veículo reconhecida
+  (nova função `isCarSearchQuery()` + set `CAR_SEARCH_KEYWORDS` em
+  `extension/src/background/constants.ts` — fiat, ford, volkswagen, "carro", "suv", etc.,
+  comparação sem acento/caixa). Busca nacional sem `q` ou com termo não reconhecido como carro
+  continua bloqueada, com a mesma mensagem de erro atualizada. **Limitação:** o
+  `content_scripts` declarativo do `manifest.json` (auto-mark de indicadores ao abrir a página)
+  ainda só casa `*carros-vans-e-utilitarios*` — não dá pra filtrar por `q=` num match pattern
+  declarativo — então em páginas `/brasil?q=...` os indicadores só aparecem clicando "Exibir
+  indicadores"; as ações principais (Executar Análise, Varrer páginas, Analisar selecionados)
+  funcionam normalmente, pois injetam o content script via `chrome.scripting.executeScript`.
+
+### 2026-09-17
+
+- **Popup ganhou o botão "⬆️ Importar DB"** para carregar um `db.json` exportado (como o da raiz
+  do repo) direto na base da extensão (`chrome.storage.local`). Por quê: o `db.json` antigo
+  (usado quando ainda existia o proxy Node) precisava ser migrado para a base atual da extensão
+  sem passar por servidor nenhum.
+  - `extension/public/popup.html` / `extension/src/popup/dom.ts`: novo `<input type="file">`
+    (`importDbInput`) escondido, disparado pelo botão `importDbBtn`.
+  - `extension/src/popup/actions/db-view.ts`: lê o arquivo escolhido, faz `JSON.parse` e chama
+    a ação `importDb` (já existente em `message-router.ts` → `store.dbImport`), que faz merge
+    por id sem apagar o que já está salvo.
+
+### 2026-09-16 (2)
+
+- **Tudo passou a rodar dentro da extensão** — removidos `proxy/` (servidor Node) e o dev
+  server separado do painel. Por quê: o usuário pediu que a extensão fosse autocontida, sem
+  precisar manter processos externos rodando só pra usá-la.
+  - `extension/src/background/store.ts` (novo) guarda a base em `chrome.storage.local`
+    (`olx.db`), substituindo `db.json` + as rotas `GET/POST/DELETE /db` do proxy.
+  - `extension/src/background/ai-config.ts` (novo) guarda a config/chaves dos provedores de
+    IA (DeepSeek/OpenAI) em `chrome.storage.local` (`olx.aiConfig`), substituindo `proxy/.env`.
+  - `extension/src/background/ai-client.ts` (novo) chama a API do provedor ativo direto do
+    service worker (`fetch`), portando os prompts e o tratamento de erro de
+    `proxy/server.mjs` (`callAi`, `buildPrompt`, `buildComparePrompt`, `buildMetricsPrompt`).
+  - `message-router.ts` ganhou as ações `getAiConfig`, `setAiProvider`,
+    `updateAiProviderConfig`, `aiAnalyze`, `aiCompare`, `aiMetrics`, `importDb`, `removeRecord`
+    — o painel agora fala com o background por `chrome.runtime.sendMessage`, não HTTP.
+  - `manifest.json`: `host_permissions` trocou `http://localhost:8787/*` por
+    `https://api.deepseek.com/*` e `https://api.openai.com/*`; ganhou `storage` e
+    `unlimitedStorage`.
+  - `web/` (painel) builda direto em `extension/build/panel/` (Vite, `base: "./"`) e abre como
+    página da extensão pelo botão "🗂️ Abrir painel" no popup (`extension/src/popup/actions/open-panel.ts`).
+    `web/src/lib/api.ts` e `img.ts` não falam mais HTTP com um proxy; `main.tsx` trocou
+    `createBrowserRouter` por `createHashRouter` (página de extensão não tem servidor pra
+    resolver rotas no F5).
+  - `web/src/pages/Config.tsx` trocou o campo "endpoint do proxy" por um botão "Importar
+    db.json" (merge por id), pra trazer dados de uma instalação com a versão antiga.
+  - `db.json` da raiz **não foi apagado** (fica como backup/histórico) mas deixou de ser lido
+    em runtime; `setup.sh` não abre mais terminais, só instala e builda (webpack → depois
+    Vite, porque o build da extensão limpa `extension/build/`).
+
+### 2026-09-16
+
+- **Refatoração de `extension/src`** para arquitetura escalável: cada entry point
+  (`background.ts`, `content.ts`, `popup.ts`) virou um bootstrap fino (`import "./<pasta>/index"`)
+  e a implementação foi dividida em pastas de mesmo nome (`background/`, `content/`, `popup/`),
+  organizadas por responsabilidade (`actions/`, `render/`, `db.ts`, `tabs.ts`, `state.ts`,
+  etc. — ver seção [Arquitetura](#arquitetura)). Motivo: os três arquivos tinham crescido para
+  ~600–1050 linhas cada, misturando tipos, extração de DOM, chamadas de IA, persistência e UI
+  num único módulo, dificultando manutenção. Nenhum comportamento mudou; os três bundles do
+  `webpack.config.js` continuam apontando para os mesmos entry points e o `npm run build`
+  gera os mesmos três arquivos (`background.js`, `content.js`, `popup.js`).
+
+### 2026-09-14
+
+- **Campo pra digitar a quantidade a selecionar**, na toolbar de seleção (ao lado de
+  "selecionar todas"). Depois de "Carregar pendentes do DB" trazer centenas de itens de uma
+  vez, "selecionar todas" seleciona tudo — sem opção de processar aos poucos. Novo input
+  numérico + botão "Selecionar quantidade": seleciona só os N primeiros pendentes (entre os
+  que ainda não foram analisados a fundo), pra rodar "Analisar selecionados" em lotes
+  menores em vez de mandar tudo de uma vez. `popup.ts` limita o `max` do input ao total de
+  pendentes atual.
+- **"Analisar página" não perde mais o que categorizou ao fechar a extensão.** Antes, o
+  resultado do "Analisar página" (categorização rasa da listagem — marca/modelo/ano/score)
+  só existia na memória da janela do popup; fechando a janela sem rodar "Analisar
+  selecionados" em cima, esse trabalho ia pro lixo. Agora `analyze()` em `background.ts`
+  grava um rascunho raso (`itemToRecord()`, mesma função que o "Varrer páginas" já usava) de
+  cada carro **novo** no `db.json` ao final da análise — nunca sobrescreve quem já está no DB
+  (raso ou completo). Status do botão passa a mostrar quantos foram salvos.
+  Novo botão **"📥 Carregar pendentes do DB"**: lê o `db.json` inteiro, filtra os registros
+  ainda `shallow` (rasos — passaram pela listagem mas não pela página do anúncio) de
+  **qualquer sessão anterior** e devolve pra lista do popup (`loadPending()` +
+  `recordToItem()` em `background.ts`, rota `"loadPending"`) — dá pra selecionar e rodar
+  "Analisar selecionados" neles na hora, mesmo numa janela nova da extensão, porque
+  `analyzeSelected()` já navega pela `url` salva no registro (não depende da página de
+  listagem onde foram vistos originalmente).
+- **Corrigido: aba do OLX travando com a extensão ativa.** O `MutationObserver` do auto-mark
+  (adicionado na feature "indicadores aparecem sozinhos ao abrir a página", acima) tinha dois
+  problemas que juntos causavam trava em listagens grandes:
+  1. A cada mutação do DOM ele rodava `extractSections()` **completo** — parseia título,
+     preço, km, cor, local, data e nº de fotos de TODO card na página (~8 querySelectorAll por
+     card) — só pra descobrir os ids ainda sem marcação. Depois de um "Varrer páginas"/scroll
+     longo (centenas de cards acumulados), isso repetia a cada ~1s, pra sempre.
+  2. Pior: inserir o próprio badge de score (`markCards()` faz `section.appendChild(badge)`)
+     É uma mutação do DOM — que dispara o MESMO observer de novo, criando um ciclo que nunca
+     silencia sozinho.
+  Corrigido com: `collectPendingIds()`, uma varredura BARATA que só lê o id de cada
+  `section.olx-adcard` (via o link, com fallback pro atributo já tagueado) sem parsear mais
+  nada — substitui o `extractSections()` completo dentro do loop do auto-mark (que continua
+  completo só quando de fato chamado via "Analisar página"/"Exibir indicadores", ações
+  pontuais do usuário, não em loop). E `isOwnMutation()`, que ignora lotes de mutação onde
+  todo nó adicionado/removido é o próprio `.olxw-score-badge`, quebrando o ciclo do item 2.
+  Intervalo do throttle subiu de 1s pra 1.5s como margem extra.
+- **Alerta de "km suspeita" (km muito baixa pra idade do carro) via IA.** O prompt em
+  `proxy/server.mjs` (`buildPrompt()`, usado por `/analyze` — listagem, deep analyze e o
+  backfill de score) ganhou os campos `kmSuspeito`/`kmSuspeitoMotivo`. A IA recebe o ano
+  atual real (`new Date().getFullYear()`, calculado no servidor — não deixo a IA "adivinhar"
+  o ano de hoje) e agora também o `km` numérico de cada anúncio como campo estruturado (antes
+  só ia embutido em texto solto dentro de `details`); ela calcula km/ano de uso e marca
+  `kmSuspeito: true` quando a média é muito baixa pra um carro de passeio comum
+  (bem abaixo de ~3.000 km/ano) — indício de odômetro voltado, sinistro rodado escondido ou
+  km real maior que o anunciado. Carros muito novos (0-1 ano) ou sem `km`/`ano` suficientes
+  ficam `null` (a IA foi instruída a não inventar). Km muito ALTA pra idade não entra aqui —
+  isso já pesa no `score` de condição existente; este campo é só pra km anormalmente BAIXA.
+  Testado com casos reais: 8.000km/10 anos → `kmSuspeito: true` com motivo "800 km/ano";
+  95.000km/10 anos → `null`.
+  Surfaced em 3 lugares: **popup da extensão** (badge vermelho "⚠️ km suspeita" em
+  `renderItem()`, tooltip com o motivo), **Listagem** do painel web (badge amarelo ao lado
+  do modelo/versão) e **Detalhe** do anúncio (banner de aviso acima da ficha da categoria).
+  Tipo `kmSuspeito`/`kmSuspeitoMotivo` adicionado em `AdCategoria` (web) e `Categoria`
+  (extensão).
+- **Comparador (`web/`) ganhou 2 botões com IA: "Comparar com IA" e "Exibir métricas".**
+  Duas rotas novas no proxy — `POST /compare` e `POST /metrics` — reaproveitando a mesma
+  infra multi-provedor do `/analyze`; extraí o fetch/timeout/tratamento de erro de
+  `handleAnalyze()` pra um helper `callAi(messages, {label})` compartilhado pelas três rotas
+  (evita triplicar ~50 linhas de tratamento de erro HTTP/timeout).
+  - **"Comparar com IA"**: manda os dados já conhecidos dos carros selecionados (marca,
+    modelo, versão, ano, km, preço, score de condição se houver) e pede um **ranking** do
+    melhor pro pior custo-benefício, com 1-2 frases de justificativa por carro — exatamente
+    "o carro X é melhor pois..., seguido dos outros". Renderizado como lista ordenada, o 1º
+    colocado destacado (borda + fundo verde clarinho).
+  - **"Exibir métricas"**: pede à IA consumo médio cidade/estrada em **gasolina e álcool**,
+    **potência (cv)** e **peso (kg)** — a partir do conhecimento geral dela sobre aquela
+    marca/modelo/versão/ano (não vem do anúncio, que não traz ficha técnica). Os resultados
+    entram como linhas extras na própria tabela de comparação (Consumo cidade/estrada
+    gasolina/álcool, Potência, Peso, Obs. da IA), lado a lado com preço/km/ano que já
+    existiam. O prompt pede explicitamente `null` em vez de inventar número quando a IA não
+    tem confiança na versão exata.
+  - **A comparação em si (a tabela) continua 100% sem IA** — os botões são opt-in; "quero
+    poder usar a IA ou não" foi interpretado como: a tabela estática de sempre não muda em
+    nada, a IA só entra se o usuário clicar em um dos dois botões nesta sessão.
+  - `web/src/lib/api.ts` ganhou `compareCars()`/`carMetrics()` (tipo `CompareCarInput`
+    resume o carro pro prompt, sem reenviar o registro inteiro) e `web/src/types.ts` ganhou
+    `CompareRankingItem`/`CarMetric` + o campo `score`/`scoreMotivo` em `AdCategoria` (pra
+    reaproveitar o score de condição — feature registrada mais acima neste histórico — como
+    sinal no ranking).
+- **"Exibir indicadores" virou um toggle: ativado mostra "Ocultar indicadores".** Clicar de
+  novo remove a borda/score pintados na página do OLX e **pausa** o auto-mark (senão a
+  marcação reapareceria sozinha ~1s depois, já que o `MutationObserver` do content script
+  continua rodando). `content.ts` ganhou a flag `indicatorsHidden` (module-level): setada em
+  `hideIndicators()` — que limpa `data-olxw-status` e remove os badges de todo
+  `section.olx-adcard` — e checada no início de `autoMarkVisibleCards()`; volta a `false`
+  sempre que `markCards()` roda de novo (auto-mark, "Analisar página" ou "Exibir
+  indicadores"), então a próxima marcação (automática ou manual) já reativa sozinha. Nova
+  rota `hideIndicators` no `background.ts`/roteador, e `popup.ts` troca o rótulo do botão
+  (`setIndicatorsButtonLabel()`) — "Analisar página" também sincroniza pra "Ocultar
+  indicadores" já que ele pinta a página como efeito colateral.
+- **Botão "Exibir indicadores"** na aba "Analisar página" do popup. Cobre o caso em que a
+  extensão foi recarregada (ou a aba do OLX já estava aberta antes de instalar/atualizar) e o
+  `content_scripts` declarativo do manifest não rodou nela — o auto-mark só dispara em
+  NAVEGAÇÕES novas depois de carregado. O botão força: injeta o content script na aba atual
+  (`chrome.scripting.executeScript`, funciona mesmo sem o `content_scripts` ter rodado),
+  extrai os cards e chama `checkKnown()` — mesma rota do auto-mark, só lê o `db.json`, **sem
+  IA**. Nova função `showIndicators()` em `background.ts`, roteada pela action
+  `"showIndicators"`; status final no popup resume quantos ficaram verde/amarelo.
+- **Indicadores aparecem sozinhos ao abrir a página do OLX** (antes só apareciam depois de
+  clicar em "Analisar página"). `manifest.json` ganhou um `content_scripts` declarativo
+  (`matches: https://*.olx.com.br/*carros-vans-e-utilitarios*`, `document_idle`) — o
+  `content.js` agora roda automaticamente em toda página de carros, sem precisar de
+  `chrome.scripting.executeScript` do background primeiro. Ao carregar, `content.ts` chama
+  `autoMarkVisibleCards()`: extrai os cards visíveis, manda os ids ainda sem marcação pro
+  background (`action: "checkKnown"`, nova rota — só lê o `db.json` local, **sem IA, sem
+  custo**) e pinta a borda verde/amarela + score de volta com `markCards()`. Um
+  `MutationObserver` no `document.body` reagenda essa checagem (throttle de ~1s, não debounce
+  puro, pra não ficar esperando a página parar de mutar pra sempre) — cobre scroll infinito e
+  troca de filtro carregando cards novos. `background.ts` ganhou `checkKnown(ids)`, que nunca
+  lança (proxy fora do ar → lista vazia, tenta nas próximas mutações). O clique em "Analisar
+  página" continua sendo o único jeito de rodar a categorização por IA de fato (isso teria
+  custo); a auto-marcação só reflete o que já está salvo no DB.
+- **Popup em 2 abas ("Varrer páginas" / "Analisar página") + borda e score direto nos
+  cards do OLX.** `extension/public/popup.html` ganhou um seletor de abas (`.tabs`); a
+  varredura de paginação foi pra `#panelCrawl` e o botão "Analisar página" (antes "Executar
+  análise") + Auto-scroll foram pra `#panelAnalyze` — a lista de resultados/toolbar/DB
+  continuam compartilhados abaixo, então tanto "Varrer" quanto "Analisar" alimentam a mesma
+  lista. `popup.ts` faz a troca (`showTab()`) e agora também pinta cada item da lista com
+  `border-left` verde (`.item.done`) ou amarelo (`.item.pending`) e mostra um badge
+  "Score N" (verde/laranja/vermelho por faixa) quando o item já foi analisado a fundo e tem
+  `categoria.score`.
+  **A mesma marcação agora aparece direto na página do OLX**, não só no popup — pedido do
+  item 5 do `prompt.md` ("Na UI do OLX add um componente com o score"). `content.ts` tagueia
+  cada `section.olx-adcard` com `data-olxw-id` na extração e ganhou a ação `markCards`, que
+  aplica `outline` verde/amarelo + um badge de score (canto superior direito) direto no card
+  real do OLX — `background.ts` chama isso ao fim de `analyze()` (a ação por trás do botão
+  "Analisar página"), então qualquer carro na tela — novo ou **já analisado antes** — fica
+  marcado assim que a tela é analisada, sem precisar re-selecionar nada.
+  **Score de condição do carro (0-100):** o prompt da IA (`proxy/server.mjs`) ganhou os
+  campos `score` e `scoreMotivo` no JSON pedido, com instruções de quando estimar e quando
+  responder `null` (sem inventar nota sem sinal nenhum no anúncio). `analyzeSelected()`
+  grava o score que vier junto da categoria, como sempre fazia. Pra carros que já estavam no
+  `db.json` **antes** dessa feature (sem `score` salvo), `analyze()` agora chama
+  `backfillScores()`: pega a `description`/`properties` já salvas no registro (sem navegar
+  de novo até o anúncio) e pede só o score pra IA, gravando de volta no registro — é assim
+  que "carros já analisados" ganham o selo mesmo sem re-analisar a fundo.
+  **Limitação conhecida:** a marcação na página do OLX é aplicada nos elementos DOM reais no
+  momento do "Analisar página"; se o React do OLX re-renderizar aquele trecho da listagem
+  (troca de filtro, nova página carregada por scroll infinito antes de re-analisar, etc.), a
+  marcação pode sumir até a próxima análise — não há `MutationObserver` reaplicando sozinho.
+- **Segundo provedor de IA: OpenAI, alternável com o DeepSeek.** O proxy agora guarda a
+  config de **cada provedor separadamente** (`providers.deepseek` / `providers.openai`,
+  prefixos de env `DEEPSEEK_*` / `OPENAI_*`) e um `AI_PROVIDER` diz qual está **ativo** — é o
+  que `/analyze` (e portanto a extensão) usa de fato. `GET /config` devolve os dois blocos +
+  o ativo; `POST /config` aceita `{ provider }` pra trocar o ativo e/ou `{ deepseek: {...} }` /
+  `{ openai: {...} }` pra editar um provedor específico sem trocar o ativo — tudo persistido em
+  `proxy/.env`. Na aba **IA** (`web/src/pages/Ai.tsx`) isso virou duas abas (DeepSeek/OpenAI):
+  clicar numa torna esse provedor o ativo (mostra um selo "ativo"); o formulário abaixo edita a
+  config de qualquer uma das duas independentemente; "Testar IA" sempre testa o **ativo**.
+  DeepSeek e OpenAI usam o mesmo formato de request (`chat/completions` estilo OpenAI), então
+  o `handleAnalyze()` não precisou de lógica por provedor além de trocar `apiUrl`/`model`/
+  `apiKey`/`timeoutMs`.
+- **Corrigido `DEEPSEEK_MODEL`: era `DeepSeek-V4.1-Flash`, que a API rejeitava** (`"The
+  supported API model names are deepseek-flash, deepseek-v4-pro..."`). Trocado para
+  `deepseek-flash` (default em `server.mjs` e `.env.example`, e no `.env` local). **Atenção:**
+  ao testar `deepseek-flash` via `/analyze` a chamada upstream ficou lenta (bem acima de 60s)
+  e em uma tentativa devolveu HTTP 200 com corpo vazio — parece questão da própria API/conta
+  DeepSeek, não do proxy (a OpenAI, testada com o mesmo código, respondeu normal e rápido).
+  Vale confirmar na sua conta DeepSeek se `deepseek-flash` está liberado nesse plano.
+- **Nova aba "IA" no painel (`web/`)**, para configurar e testar a IA sem mexer em arquivo.
+  Novo par de rotas no proxy: `GET /config` devolve a config atual (apiUrl, model, timeoutMs,
+  hasKey, `keyPreview` com a chave mascarada) e `POST /config` atualiza `apiUrl`/`model`/
+  `timeoutMs`/`apiKey` em runtime **e** grava em `proxy/.env` (`persistEnv()` reescreve só as
+  linhas `DEEPSEEK_*`, preservando o resto do arquivo; campos vazios/omitidos mantêm o valor
+  atual, então dá pra trocar o modelo sem reenviar a chave). Não precisa reiniciar o proxy — as
+  variáveis viraram `let` em vez de `const`. A página `web/src/pages/Ai.tsx` traz o formulário
+  de config + o botão "Testar IA" (que antes vivia em DB/Config — removido de lá pra não
+  duplicar). Novo item no menu lateral (`Layout.tsx`) e rota `/ia` (`main.tsx`).
+- **Modelo padrão trocado de `deepseek-chat` para `DeepSeek-V4.1-Flash`.** Atualizado o valor
+  default em `proxy/server.mjs` (fallback quando `DEEPSEEK_MODEL` não está definido) e em
+  `proxy/.env.example`; `proxy/.env` local também ajustado. Não requer mudança de código além
+  da variável — o proxy só repassa `MODEL` no corpo da chamada à API.
 
 ### 2026-09-10
 

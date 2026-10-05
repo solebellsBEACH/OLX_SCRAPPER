@@ -1,4 +1,4 @@
-// Tipos do registro do db.json (a fonte é o proxy: GET /db devolve { [id]: DbRecord }).
+// Tipos do registro salvo pela extensão (chrome.storage.local: { [id]: DbRecord }).
 // Reaproveitados em todo o painel — não duplicar shape em outro lugar.
 
 export interface AdProperty {
@@ -38,6 +38,12 @@ export interface AdCategoria {
   cambio: string | null;
   portas: number | null;
   carroceria: string | null;
+  /** 0-100: condição estimada do carro pela IA a partir do anúncio (ver README). */
+  score?: number | null;
+  scoreMotivo?: string | null;
+  /** true = km muito baixa pra idade do carro (possível odômetro adulterado). null = sem dado suficiente. */
+  kmSuspeito?: boolean | null;
+  kmSuspeitoMotivo?: string | null;
 }
 
 export interface DbRecord {
@@ -55,12 +61,120 @@ export interface DbRecord {
 /** Mapa como está no arquivo. */
 export type Db = Record<string, DbRecord>;
 
-export interface HealthResponse {
-  ok: boolean;
-  hasKey: boolean;
+export interface AiModelOption {
+  id: string;
+  label: string;
+}
+
+/** Provedor conhecido (catálogo vindo do background). `models` vazio = modelo digitado à mão. */
+export interface AiPreset {
+  id: string;
+  label: string;
+  apiUrl: string;
+  models: AiModelOption[];
+  keyPlaceholder: string;
+  keyUrl?: string;
+}
+
+/** Provedor de IA cadastrado (chrome.storage.local da extensão), com a chave mascarada. */
+export interface AiProvider {
+  id: string;
+  presetId: string;
+  label: string;
+  apiUrl: string;
   model: string;
-  port: number;
-  dbPath: string;
+  timeoutMs: number;
+  hasKey: boolean;
+  keyPreview: string | null;
+}
+
+/** Config atual da IA: provedores cadastrados, o ativo e o catálogo de presets. */
+export interface AiConfig {
+  activeId: string | null;
+  providers: AiProvider[];
+  presets: AiPreset[];
+}
+
+/** Dados do formulário de provedor. Sem `id` = novo. `apiKey` vazio mantém a atual. */
+export interface AiProviderInput {
+  id?: string;
+  presetId?: string;
+  label?: string;
+  apiUrl?: string;
+  model?: string;
+  timeoutMs?: number;
+  apiKey?: string;
+}
+
+/** Um item do ranking devolvido por POST /compare (do melhor pro pior). */
+export interface CompareRankingItem {
+  id: string;
+  posicao: number;
+  texto: string;
+}
+
+/** Métricas técnicas estimadas por POST /metrics (conhecimento geral da IA sobre o modelo). */
+export interface CarMetric {
+  id: string;
+  consumoCidadeGasolina: number | null;
+  consumoEstradaGasolina: number | null;
+  consumoCidadeAlcool: number | null;
+  consumoEstradaAlcool: number | null;
+  potenciaCv: number | null;
+  pesoKg: number | null;
+  nota: string | null;
+}
+
+/** Alerta acionável sobre um anúncio (ver computeVehicleAnalysis em lib/rows.ts). */
+export interface VehicleAlert {
+  type: string;
+  severity: "attention" | "danger";
+  title: string;
+  description: string;
+}
+
+/** Sinal positivo sobre um anúncio (ver computeVehicleAnalysis em lib/rows.ts). */
+export interface VehicleSignal {
+  type: string;
+  title: string;
+  description: string;
+}
+
+/**
+ * Como o opportunityScore final foi formado (transparência/debug — nível 3, não pro
+ * resumo em linguagem simples). Cada campo de ajuste só existe quando aquele componente
+ * de fato entrou no cálculo (ex.: sem amostra de mercado, priceAdjustment fica ausente).
+ */
+export interface VehicleScoreBreakdown {
+  base: number;
+  priceAdjustment?: number;
+  conditionAdjustment?: number;
+  mileageAdjustment?: number;
+  final: number;
+}
+
+/**
+ * Resumo de análise de um anúncio, derivado só de dados já disponíveis no frontend
+ * (preço, km, categoria da IA, comparação com o grupo marca+modelo+ano).
+ * Todo campo é opcional: dado insuficiente não deve quebrar a UI, só resultar em "sem info".
+ */
+export interface VehicleAnalysisSummary {
+  opportunityScore?: number; // 0-100
+  opportunityLabel?: "excellent" | "good" | "fair" | "poor";
+
+  confidenceScore?: number; // 0-100
+  confidenceLabel?: "high" | "medium" | "low";
+
+  priceStatus?: "well_below" | "below" | "market" | "above" | "well_above";
+
+  priceDifferencePercent?: number;
+  marketAveragePrice?: number;
+  marketSampleSize?: number;
+
+  alerts: VehicleAlert[];
+  positiveSignals: VehicleSignal[];
+
+  scoreBreakdown?: VehicleScoreBreakdown;
 }
 
 /** Linha achatada usada pela tabela e pelos agregados do dashboard. */
@@ -81,6 +195,8 @@ export interface AdRow {
   /** epoch ms para ordenar; vem de savedAt/analyzedAt/publishedAt. */
   date: number | null;
   thumb: string | null;
-  /** preço abaixo da média do mesmo modelo+ano (grupo com 2+ anúncios). */
+  /** "Bom negócio": preço abaixo do mercado e sem alerta de preço suspeito (ver isGoodDeal). */
   opportunity: boolean;
+  /** resumo de análise v1 (score de oportunidade, confiança, alertas, sinais). */
+  analysis: VehicleAnalysisSummary;
 }

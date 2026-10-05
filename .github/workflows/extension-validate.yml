@@ -1,0 +1,59 @@
+name: Validar extensão (Chrome Web Store)
+
+on:
+  push:
+    paths:
+      - "extension/**"
+      - "web/**"
+      - ".github/workflows/extension-validate.yml"
+  pull_request:
+    paths:
+      - "extension/**"
+      - "web/**"
+      - ".github/workflows/extension-validate.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            extension/package-lock.json
+            web/package-lock.json
+
+      # Ordem importa: o build da extensão (webpack) limpa extension/build/
+      # inteiro; o painel (Vite, em web/) gera extension/build/panel/ e
+      # precisa rodar DEPOIS, senão "Abrir painel" quebra em produção.
+      # Ver setup.sh.
+      - name: "[extension] Instalar dependências"
+        working-directory: extension
+        run: npm ci
+
+      - name: "[extension] Typecheck"
+        working-directory: extension
+        run: npm run typecheck
+
+      - name: "[extension] Build de produção"
+        working-directory: extension
+        run: npm run build
+
+      - name: "[web] Instalar dependências"
+        working-directory: web
+        run: npm ci
+
+      - name: "[web] Typecheck"
+        working-directory: web
+        run: npx tsc -b
+
+      - name: "[web] Build do painel -> extension/build/panel"
+        working-directory: web
+        run: npm run build
+
+      - name: Validar pacote para a Chrome Web Store
+        working-directory: extension
+        run: npm run validate:store

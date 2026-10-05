@@ -1,9 +1,13 @@
 node_modules/
 extension/build/
 web/dist/
+/dist/
 web/node_modules/.tmp/
 **/.env
 *.log
 db.json
 db.json.tmp
 prompt.md
+
+# capturas/rascunhos gerados em sessões com o Claude
+Claude outputs/

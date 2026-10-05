@@ -31,6 +31,7 @@ module.exports = (_env, argv) => ({
     new CopyPlugin({
       patterns: [
         { from: "src/manifest.json", to: "manifest.json" },
+        { from: "src/icons", to: "icons" },
         { from: "public/popup.html", to: "popup.html" },
         { from: "styles/popup.css", to: "popup.css" },
       ],

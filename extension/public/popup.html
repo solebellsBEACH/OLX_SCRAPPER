@@ -14,23 +14,101 @@
           <span class="brand-mark">🚗</span>
           <div class="brand-txt">
             <h1>OLX Workspace</h1>
-            <p class="sub">Só carros · categorização com IA</p>
+            <p class="sub">Analise carros da OLX com IA</p>
           </div>
         </div>
+        <button id="tourBtn" class="btn btn-sm" type="button" title="Ver o tutorial passo a passo de novo">🎓 Tutorial</button>
+        <button id="openPanelBtn" class="btn btn-sm">🗂️ Abrir painel</button>
       </header>
 
-      <section class="card">
-        <div class="actions">
-          <button id="analyzeBtn" class="btn btn-primary">
-            <span class="btn-ico">📊</span> Executar análise
-          </button>
-          <button id="scrollBtn" class="btn">
-            <span class="btn-ico">⬇️</span> Auto-scroll
-          </button>
-        </div>
-      </section>
+      <button id="aiMissingToast" class="toast" type="button" hidden>
+        <span class="toast-ico">⚠️</span>
+        <span>Nenhuma IA configurada — toque para configurar</span>
+      </button>
 
-      <section class="card">
+      <button id="pendingToast" class="toast" type="button" hidden>
+        <span class="toast-ico">⏳</span>
+        <span id="pendingToastText"></span>
+      </button>
+
+      <dialog id="pendingDialog" class="dialog">
+        <form method="dialog">
+          <h2>Análise detalhada</h2>
+          <p id="pendingDialogText"></p>
+          <div class="dialog-btns">
+            <button id="pendingNo" class="btn ghost" value="no">Agora não</button>
+            <button id="pendingYes" class="btn btn-primary" value="yes">Analisar agora</button>
+          </div>
+        </form>
+      </dialog>
+
+      <div class="mode-toggle" role="group" aria-label="Modo de uso">
+        <button id="modeBeginnerBtn" class="mode-btn" type="button" aria-pressed="true">Iniciante</button>
+        <button id="modeAdvancedBtn" class="mode-btn" type="button" aria-pressed="false">Avançado</button>
+      </div>
+
+      <main id="beginnerView" class="view">
+        <section class="card">
+          <div class="card-title">1 · O que você quer fazer?</div>
+          <div class="choices" role="radiogroup" aria-label="Tipo de análise">
+            <button id="choiceCurrent" class="choice" type="button" role="radio" aria-checked="true" data-action="current">
+              <span class="choice-ico">📄</span>
+              <span class="choice-txt"><strong>Analisar esta página</strong><span>Avalia os anúncios que você está vendo agora</span></span>
+            </button>
+            <button id="choiceAll" class="choice" type="button" role="radio" aria-checked="false" data-action="all">
+              <span class="choice-ico">🔄</span>
+              <span class="choice-txt"><strong>Varrer todas as páginas</strong><span>Passa por várias páginas de resultados, uma após a outra</span></span>
+            </button>
+          </div>
+        </section>
+
+        <section class="card" id="pagesCard" hidden>
+          <div class="card-title">2 · Quantas páginas?</div>
+          <label class="field tip-row" id="pagesRow">
+            <span>Páginas para varrer</span>
+            <input type="number" id="optPages" min="1" max="10" value="5" />
+            <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Páginas para varrer" data-tip="Quantas páginas de resultados percorrer (no máximo 10)">?</span>
+          </label>
+        </section>
+
+        <section class="card" id="quickCountCard">
+          <div class="card-title">2 · Quantos anúncios?</div>
+          <label class="field tip-row" id="quickCountRow">
+            <span>Quantidade a analisar</span>
+            <input type="number" id="optQuickCount" min="1" max="50" value="5" />
+            <span class="tip" tabindex="0" role="img" aria-label="Ajuda: Quantidade a analisar" data-tip="Quantos anúncios (do topo da página) entram na análise rápida, no máximo 50">?</span>
+          </label>
+        </section>
+
+        <section class="card">
+          <div class="card-title">3 · Pronto? Vamos lá</div>
+          <p id="beginnerCount" class="count-line" aria-live="polite"></p>
+          <button id="startBtn" class="btn btn-primary btn-lg" type="button" aria-describedby="startHint">🚀 Começar análise</button>
+          <p id="startHint" class="start-hint" hidden></p>
+          <div id="beginnerStatus" class="b-status" role="status" aria-live="polite" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span id="beginnerStatusText"></span>
+          </div>
+          <button id="cancelBtn" class="btn ghost" type="button" hidden>✋ Cancelar</button>
+          <button id="openResultsBtn" class="link-btn" type="button" hidden>📊 Abrir painel de resultados</button>
+        </section>
+      </main>
+
+      <div id="advancedView" class="view" hidden>
+
+      <nav class="tabs" role="tablist">
+        <button id="tabCrawlBtn" class="tab-btn" role="tab" aria-selected="false" data-tab="crawl">
+          📚 Varrer páginas
+        </button>
+        <button id="tabAnalyzeBtn" class="tab-btn" role="tab" aria-selected="true" data-tab="analyze">
+          🔎 Analisar página
+        </button>
+        <button id="tabConfigBtn" class="tab-btn" role="tab" aria-selected="false" data-tab="config">
+          ⚙️ Config
+        </button>
+      </nav>
+
+      <section id="panelCrawl" class="card" role="tabpanel" hidden>
         <div class="card-title">Varredura de páginas</div>
         <div id="crawlBar">
           <button id="crawlBtn" class="btn btn-primary">📚 Varrer páginas</button>
@@ -44,19 +122,66 @@
           <label class="opt">
             <input type="checkbox" id="scrollEach" checked />
             <span>Rolar cada página</span>
+            <span class="tip" tabindex="0" role="img" aria-label="Ajuda" data-tip="Carregar mais anúncios enquanto a página é lida">?</span>
           </label>
           <label class="opt">
             <input type="checkbox" id="skipKnown" checked />
-            <span>Pular os que já estão no DB</span>
+            <span>Pular os que já estão salvos</span>
           </label>
           <label class="opt">
             <input type="checkbox" id="saveToDb" checked />
-            <span>Salvar no DB</span>
+            <span>Salvar na minha lista</span>
           </label>
         </div>
       </section>
 
+      <section id="panelAnalyze" class="card" role="tabpanel">
+        <div class="card-title">Analisar página atual</div>
+        <div class="actions actions-wrap">
+          <button id="analyzeBtn" class="btn btn-primary">
+            <span class="btn-ico">📊</span> Analisar página
+          </button>
+          <button id="quickAnalyzeBtn" class="btn">
+            <span class="btn-ico">⚡</span> Análise rápida
+          </button>
+        </div>
+      </section>
+
+      <section id="panelConfig" class="card" role="tabpanel" hidden>
+        <div class="card-title">Ferramentas</div>
+        <div class="actions actions-wrap">
+          <button id="showIndicatorsBtn" class="btn">
+            <span class="btn-ico">🚫</span> Ocultar indicadores
+          </button>
+          <button id="loadPendingBtn" class="btn">
+            <span class="btn-ico">📥</span> Carregar pendentes salvos
+          </button>
+        </div>
+        <div class="card-title" style="margin-top:14px">Como funciona</div>
+        <p class="card-hint">
+          Destaca os anúncios na própria página da OLX: <span class="dot dot-done"></span> borda verde +
+          "Condição 85/100" = já analisado pela IA · <span class="dot dot-quick"></span> azul tracejado +
+          ⚡nota = "Análise rápida" · <span class="dot dot-pending"></span> cinza pontilhado = salvo,
+          aguardando análise. A página também mostra uma legenda recolhida no canto inferior esquerdo. "Exibir indicadores" só confere o que já está salvo na sua lista (sem
+          IA) — útil se a extensão foi recarregada com a aba já aberta e a marcação automática não
+          pegou.
+        </p>
+        <p class="card-hint">
+          "Análise rápida" varre os cards e dá um score 0-100 SÓ com o que já aparece no card
+          (km + ano do título) — sem chamar a IA, então é instantâneo, mas não sabe marca/modelo/
+          estado de conservação de verdade (isso continua exigindo "Analisar página" ou "Analisar
+          selecionados").
+        </p>
+        <p class="card-hint">
+          "Analisar página" já grava um rascunho simples de cada carro novo na sua lista
+          (não perde mais ao fechar a extensão). "Carregar pendentes salvos" traz de volta pra lista
+          os que ainda não passaram por "Analisar selecionados" — de qualquer sessão anterior —,
+          pra você selecionar e mandar analisar a fundo agora.
+        </p>
+      </section>
+
       <div id="status" role="status"></div>
+      <button id="cancelAdvBtn" class="btn btn-sm ghost" type="button" hidden>✋ Cancelar operação</button>
 
       <div id="toolbar" hidden>
         <label class="opt">
@@ -65,12 +190,20 @@
         </label>
         <div class="toolbar-btns">
           <button id="selectAllBtn" class="btn btn-sm">selecionar todas (0)</button>
+          <label class="field">
+            <span>ou</span>
+            <input type="number" id="selectCountInput" min="1" value="10" />
+            <span class="field-hint">pendentes</span>
+          </label>
+          <button id="selectCountBtn" class="btn btn-sm">Selecionar quantidade</button>
           <button id="clearSelBtn" class="btn btn-sm ghost" disabled>limpar seleção</button>
           <button id="analyzeSelBtn" class="btn btn-sm btn-primary" disabled>
             🔎 Analisar selecionados (0)
           </button>
-          <button id="viewDbBtn" class="btn btn-sm">🗃️ Ver DB</button>
-          <button id="clearDbBtn" class="btn btn-sm ghost">limpar DB</button>
+          <button id="viewDbBtn" class="btn btn-sm">🗃️ Ver dados salvos</button>
+          <button id="importDbBtn" class="btn btn-sm">⬆️ Restaurar backup</button>
+          <input type="file" id="importDbInput" accept="application/json" hidden />
+          <button id="clearDbBtn" class="btn btn-sm ghost">Apagar todos os anúncios salvos</button>
         </div>
       </div>
 
@@ -83,7 +216,25 @@
         <span id="pageInfo"></span>
         <button id="nextBtn" class="btn btn-sm">Próxima ›</button>
       </div>
+      </div>
     </div>
+
+    <div id="tourOverlay" class="tour-overlay" hidden>
+      <div id="tourHighlight" class="tour-highlight"></div>
+      <div id="tourCard" class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+        <p id="tourStepLabel" class="tour-step-label"></p>
+        <h3 id="tourTitle"></h3>
+        <p id="tourText"></p>
+        <div class="tour-actions">
+          <button id="tourSkip" class="link-btn" type="button">Pular tutorial</button>
+          <div class="tour-actions-right">
+            <button id="tourBack" class="btn btn-sm" type="button">‹ Voltar</button>
+            <button id="tourNext" class="btn btn-primary btn-sm" type="button">Próximo ›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

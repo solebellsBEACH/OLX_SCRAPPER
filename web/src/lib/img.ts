@@ -1,22 +1,10 @@
-// As imagens do OLX (`img.olx.com.br`) muitas vezes não carregam direto no
-// navegador — adblock, proteção anti-rastreio, filtro de DNS. O proxy local
-// (`proxy/server.mjs`) tem uma rota `GET /img?u=` que baixa a imagem no servidor
-// e devolve os bytes, então o painel só precisa falar com o localhost.
+// O painel roda como página da própria extensão (chrome-extension://), com
+// host_permissions para *.olx.com.br já declarado no manifest — as imagens do
+// OLX carregam direto, sem precisar de um proxy local pra contornar CORS/adblock.
 
-import { getProxyUrl } from "./api";
-
-/** Reescreve uma URL de imagem do OLX para passar pelo proxy local. */
+/** Mantido por compatibilidade com os componentes existentes; hoje é identidade. */
 export function proxiedImg(src: string | null | undefined): string {
-  if (!src) return "";
-  try {
-    const u = new URL(src, window.location.href);
-    if (/(^|\.)olx\.com\.br$/i.test(u.hostname)) {
-      return `${getProxyUrl()}/img?u=${encodeURIComponent(u.toString())}`;
-    }
-  } catch {
-    /* URL relativa/estranha: usa como veio */
-  }
-  return src;
+  return src ?? "";
 }
 
 /** `onError` de <img>: tenta a URL original uma vez, depois esconde o elemento. */

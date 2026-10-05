@@ -1,0 +1,64 @@
+import { isDeepAnalyzed } from "../../background/items";
+import { clearDbBtn, dbDumpEl, importDbBtn, importDbInput, viewDbBtn } from "../dom";
+import { send } from "../messaging";
+import { renderPage } from "../render/list";
+import { state } from "../state";
+import { setStatus } from "../status";
+
+export async function refreshDbFlags(): Promise<void> {
+  const response = await send("getDb");
+  const db = (response.db ?? {}) as Record<string, unknown>;
+  for (const it of state.items) {
+    const rec = it.id ? db[it.id] : undefined;
+    it.inDb = Boolean(rec);
+    it.deepAnalyzed = isDeepAnalyzed(rec);
+  }
+}
+
+export function registerDbViewActions(): void {
+  viewDbBtn.addEventListener("click", () => {
+    void (async () => {
+      if (!dbDumpEl.hidden) {
+        dbDumpEl.hidden = true;
+        return;
+      }
+      const response = await send("getDb");
+      dbDumpEl.textContent = JSON.stringify(response.db ?? {}, null, 2);
+      dbDumpEl.hidden = false;
+    })();
+  });
+
+  importDbBtn.addEventListener("click", () => {
+    importDbInput.click();
+  });
+
+  importDbInput.addEventListener("change", () => {
+    void (async () => {
+      const file = importDbInput.files?.[0];
+      importDbInput.value = "";
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const db = JSON.parse(text) as Record<string, unknown>;
+        const response = await send("importDb", { db });
+        const count = Object.keys(response.db ?? {}).length;
+        await refreshDbFlags();
+        renderPage();
+        setStatus(`⬆️ Backup restaurado: ${count} anúncios na lista.`);
+      } catch (err) {
+        setStatus(`❌ Falha ao importar: ${(err as Error).message}`);
+      }
+    })();
+  });
+
+  clearDbBtn.addEventListener("click", () => {
+    if (!confirm("Apagar todos os anúncios salvos? Não dá pra desfazer.")) return;
+    void (async () => {
+      await send("clearDb");
+      await refreshDbFlags();
+      renderPage();
+      if (!dbDumpEl.hidden) dbDumpEl.textContent = "{}";
+      setStatus("🗑️ Todos os anúncios salvos foram apagados.");
+    })();
+  });
+}
