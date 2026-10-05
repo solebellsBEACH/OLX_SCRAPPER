@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OLX Workspace",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Análise de anúncios OLX com IA",
   "icons": {
     "16": "icons/icon16.png",

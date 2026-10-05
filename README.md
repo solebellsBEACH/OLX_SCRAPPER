@@ -296,6 +296,16 @@ OLX_SCRAPPER/
 
 > Formato: mais recente no topo. Cada entrada diz **o que** mudou e **por quê**.
 
+### 2026-10-05 (6) — Versão 1.1.0 para a Chrome Web Store
+
+- **`manifest.json`/`extension/package.json`/`package-lock.json` → `1.1.0`.** O lock estava
+  parado em `1.0.0`. Subiu a versão *minor* porque a versão reúne a rodada de usabilidade das
+  entradas (1) a (5) de hoje: veredictos iguais em todas as telas, "Condição (IA)" separada
+  da "Oportunidade", selo e legenda na OLX, popup cabendo em 600px, textos sem jargão e
+  acessibilidade.
+- `./production.sh` rodou limpo (`validate:store` OK) e gerou `dist/olx-workspace-1.1.0.zip`
+  (184K, 16 arquivos, sem `.map`).
+
 ### 2026-10-05 (5) — Usabilidade: ajustes finais
 
 - **"Preço" e "Oportunidade" separados na Listagem:**
